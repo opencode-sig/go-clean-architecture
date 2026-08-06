@@ -40,7 +40,7 @@ internal/
 ├── infrastructure/          # Shared infrastructure
 │   ├── config.go            # YAML config loading
 │   ├── database.go          # DB connection
-│   ├── db.go                # Querier + TxManager
+│   ├── db.go                # TxManager
 │   ├── logger.go            # InitLogger + TraceHandler + lumberjack
 │   ├── metrics.go           # Prometheus metrics + middleware
 │   ├── cache/               # Cache backends: memory + Redis (port.Cache impls)
@@ -73,7 +73,7 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
 1. `internal/<module>/entity/<module>.go` — pure Go struct, no deps
 2. `internal/<module>/usecase/port.go` — `Repository` interface only; `WithTx(tx port.Tx) Repository`
 3. `internal/<module>/usecase/<module>.go` — sentinel errors + `<Name>UseCase` + `New<Name>UseCase`
-4. `internal/<module>/adapter/repository/<module>_mysql.go` — `New<Name>MySQL(db *sql.DB)`, wraps `infrastructure.Querier`, wraps sentinels
+4. `internal/<module>/adapter/repository/<module>_mysql.go` — `New<Name>MySQL(db *gorm.DB)`, wraps sentinels (see Repository conventions)
 5. `internal/<module>/adapter/handler/<module>_handler.go` — named request structs, swaggo annotations, envelope responses
 6. If other modules need existence checks: add `internal/<module>/adapter/service/<module>_service.go` implementing `port.*Service` with `WithTx`
 7. If single-entity reads are hot: add `internal/<module>/adapter/repository/<module>_cache.go` (see Cache conventions)
@@ -92,16 +92,19 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
 - `infrastructure.TxManager` implements `port.TxManager` — `Begin/Commit/Rollback` + `Run(ctx, fn)` helper
 - Every module's `Repository` interface has `WithTx(tx port.Tx) Repository`
 - `port.*Service` interfaces also declare `WithTx(tx port.Tx)`, so service adapters can join transactions
-- Repository implementations use `infrastructure.Querier` (accepts `*sql.DB` or `*sql.Tx`)
+- A transaction is a `*gorm.DB` session: `Begin` returns `port.Tx` wrapping it, repo `WithTx` does `tx.(*gorm.DB)`
 - Cross-module transactions use `txManager.Run(ctx, func(tx port.Tx) error { ... })` — use cases depend on `port.TxManager`, never on `infrastructure`
 - Reference example: `comment/usecase/comment.go` `Create` (transactional user/article existence checks + insert)
 
 ### Repository conventions
 
-- `New<Name>MySQL(db *sql.DB)` constructor takes raw `*sql.DB`
-- Internal storage uses `infrastructure.Querier` instead of `*sql.DB`
-- `WithTx(tx port.Tx)` returns a new repository instance pointing to `*sql.Tx`
-- SQL queries use `?` placeholders (MySQL driver)
+- All persistence uses **GORM** (`gorm.io/gorm` + `gorm.io/driver/mysql`); GORM never leaks past the repository layer
+- `New<Name>MySQL(db *gorm.DB)` constructor takes the shared GORM handle
+- `WithTx(tx port.Tx)` returns a new repository instance holding `tx.(*gorm.DB)`
+- Queries use GORM chained builders (`Where`, `Order`, `First`, `Find`); map `gorm.ErrRecordNotFound` to the usecase sentinel
+- **Delete must check `result.RowsAffected == 0`** — GORM does not error on zero-row delete; wrap the sentinel manually
+- **Updates must be full-field** — use `Save(&entity)` (GORM `Updates(struct)` skips zero values)
+- `CreatedAt/UpdatedAt` are auto-managed by GORM (fields already named accordingly in entities)
 
 ### Cache conventions
 

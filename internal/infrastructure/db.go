@@ -5,54 +5,54 @@ package infrastructure
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/kun/zhisuo-server/internal/port"
+	"gorm.io/gorm"
 )
 
-// Querier abstracts *sql.DB and *sql.Tx so repository code works under both normal and transactional contexts.
-type Querier interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-// TxManager implements port.TxManager with *sql.DB. It manages the begin/commit/rollback lifecycle.
+// TxManager implements port.TxManager backed by GORM. A transaction is a
+// *gorm.DB session obtained from Begin; it is passed to repository WithTx
+// methods to bind operations to the same transaction.
 type TxManager struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewTxManager creates a TxManager bound to the given database connection pool.
-func NewTxManager(db *sql.DB) *TxManager {
+// NewTxManager creates a TxManager bound to the given GORM database handle.
+func NewTxManager(db *gorm.DB) *TxManager {
 	return &TxManager{db: db}
 }
 
-// Begin starts a new database transaction and returns it as a port.Tx.
+// Begin starts a new database transaction session.
 func (m *TxManager) Begin(ctx context.Context) (port.Tx, error) {
-	tx, err := m.db.BeginTx(ctx, nil)
-	if err != nil {
+	tx := m.db.WithContext(ctx).Begin()
+	if err := tx.Error; err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 
 	return tx, nil
 }
 
-// Commit commits the given transaction.
+// Commit commits the given transaction session.
 func (m *TxManager) Commit(tx port.Tx) error {
-	return tx.(*sql.Tx).Commit()
+	if err := tx.(*gorm.DB).Commit().Error; err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+
+	return nil
 }
 
-// Rollback rolls back the given transaction.
+// Rollback rolls back the given transaction session.
 func (m *TxManager) Rollback(tx port.Tx) error {
-	return tx.(*sql.Tx).Rollback()
-}
+	if err := tx.(*gorm.DB).Rollback().Error; err != nil {
+		return fmt.Errorf("rollback tx: %w", err)
+	}
 
-// TxFunc is the callback signature for TxManager.Run. It receives an open transaction.
-type TxFunc = port.TxFunc
+	return nil
+}
 
 // Run begins a transaction, calls fn, and commits on success or rolls back on error.
-func (m *TxManager) Run(ctx context.Context, fn TxFunc) error {
+func (m *TxManager) Run(ctx context.Context, fn port.TxFunc) error {
 	tx, err := m.Begin(ctx)
 	if err != nil {
 		return err
@@ -67,3 +67,6 @@ func (m *TxManager) Run(ctx context.Context, fn TxFunc) error {
 
 	return m.Commit(tx)
 }
+
+// compile-time assertion: TxManager implements port.TxManager
+var _ port.TxManager = (*TxManager)(nil)

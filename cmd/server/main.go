@@ -50,7 +50,11 @@ func main() {
 		slog.Error("database connection failed", "error", err)
 		return
 	}
-	defer db.Close()
+	defer func() {
+		if sqlDB, e := db.DB(); e == nil {
+			_ = sqlDB.Close()
+		}
+	}()
 
 	uRepo := userRepo.NewUserMySQL(db)
 	aRepo := articleRepo.NewArticleMySQL(db)

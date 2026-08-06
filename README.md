@@ -93,7 +93,7 @@ swag init -g cmd/server/main.go --output docs
 │   ├── infrastructure/          # 基础设施
 │   │   ├── config.go
 │   │   ├── database.go
-│   │   ├── db.go                # Querier + TxManager
+│   │   ├── db.go                # TxManager
 │   │   ├── logger.go            # InitLogger + TraceHandler
 │   │   └── router.go
 │   └── web/                     # 前端构建产物
