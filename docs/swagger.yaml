@@ -1,0 +1,560 @@
+basePath: /api/v1
+definitions:
+  entity.Article:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  entity.Comment:
+    properties:
+      article_id:
+        type: integer
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  entity.User:
+    properties:
+      bio:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  handler.CreateArticleRequest:
+    properties:
+      content:
+        example: This is the article content.
+        minLength: 1
+        type: string
+      title:
+        example: My First Article
+        minLength: 1
+        type: string
+      user_id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - content
+    - title
+    - user_id
+    type: object
+  handler.CreateCommentRequest:
+    properties:
+      article_id:
+        example: 1
+        minimum: 1
+        type: integer
+      content:
+        example: Great article!
+        minLength: 1
+        type: string
+      user_id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - article_id
+    - content
+    - user_id
+    type: object
+  handler.CreateUserRequest:
+    properties:
+      bio:
+        example: Software engineer and writer.
+        type: string
+      email:
+        example: jane@example.com
+        type: string
+      username:
+        example: jane_doe
+        minLength: 1
+        type: string
+    required:
+    - email
+    - username
+    type: object
+  handler.DeleteArticleRequest:
+    properties:
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - id
+    type: object
+  handler.DeleteCommentRequest:
+    properties:
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - id
+    type: object
+  handler.DeleteUserRequest:
+    properties:
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - id
+    type: object
+  handler.GetArticleRequest:
+    properties:
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - id
+    type: object
+  handler.GetUserRequest:
+    properties:
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - id
+    type: object
+  handler.ListArticleRequest:
+    type: object
+  handler.ListCommentsRequest:
+    properties:
+      article_id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - article_id
+    type: object
+  handler.ListUserRequest:
+    type: object
+  handler.UpdateArticleRequest:
+    properties:
+      content:
+        example: Updated content.
+        minLength: 1
+        type: string
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+      title:
+        example: Updated Title
+        minLength: 1
+        type: string
+    required:
+    - content
+    - id
+    - title
+    type: object
+  handler.UpdateUserRequest:
+    properties:
+      bio:
+        example: Updated bio.
+        type: string
+      email:
+        example: jane@example.com
+        type: string
+      id:
+        example: 1
+        minimum: 1
+        type: integer
+      username:
+        example: jane_doe
+        minLength: 1
+        type: string
+    required:
+    - email
+    - id
+    - username
+    type: object
+  port.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: 智索后端服务 API
+  title: 智索 API
+  version: "1.0"
+paths:
+  /articles/create:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new article owned by the specified user.
+      parameters:
+      - description: Article details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.Article'
+              type: object
+      summary: Create an article
+      tags:
+      - articles
+  /articles/delete:
+    post:
+      consumes:
+      - application/json
+      description: Removes an article by its ID.
+      parameters:
+      - description: Article ID to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.DeleteArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/port.Response'
+      summary: Delete an article
+      tags:
+      - articles
+  /articles/get:
+    post:
+      consumes:
+      - application/json
+      description: Returns a single article by its ID.
+      parameters:
+      - description: Article ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.GetArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.Article'
+              type: object
+      summary: Get article by ID
+      tags:
+      - articles
+  /articles/list:
+    post:
+      consumes:
+      - application/json
+      description: Returns every article in the system.
+      parameters:
+      - description: Request body (may be empty)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ListArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/entity.Article'
+                  type: array
+              type: object
+      summary: List all articles
+      tags:
+      - articles
+  /articles/update:
+    post:
+      consumes:
+      - application/json
+      description: Replaces the title and content of an existing article.
+      parameters:
+      - description: Article fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.Article'
+              type: object
+      summary: Update an article
+      tags:
+      - articles
+  /comments/create:
+    post:
+      consumes:
+      - application/json
+      description: Adds a new comment on the specified article.
+      parameters:
+      - description: Comment details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.Comment'
+              type: object
+      summary: Create a comment
+      tags:
+      - comments
+  /comments/delete:
+    post:
+      consumes:
+      - application/json
+      description: Removes a comment by its ID.
+      parameters:
+      - description: Comment ID to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.DeleteCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/port.Response'
+      summary: Delete a comment
+      tags:
+      - comments
+  /comments/list:
+    post:
+      consumes:
+      - application/json
+      description: Returns all comments for a given article.
+      parameters:
+      - description: Article ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ListCommentsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/entity.Comment'
+                  type: array
+              type: object
+      summary: List comments by article
+      tags:
+      - comments
+  /users/create:
+    post:
+      consumes:
+      - application/json
+      description: Registers a new user with the given username, email, and optional
+        bio.
+      parameters:
+      - description: User details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.User'
+              type: object
+      summary: Create a user
+      tags:
+      - users
+  /users/delete:
+    post:
+      consumes:
+      - application/json
+      description: Removes a user from the system by their ID.
+      parameters:
+      - description: User ID to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.DeleteUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/port.Response'
+      summary: Delete a user
+      tags:
+      - users
+  /users/get:
+    post:
+      consumes:
+      - application/json
+      description: Returns a single user by their unique ID.
+      parameters:
+      - description: User ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.GetUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.User'
+              type: object
+      summary: Get user by ID
+      tags:
+      - users
+  /users/list:
+    post:
+      consumes:
+      - application/json
+      description: Returns every registered user.
+      parameters:
+      - description: Request body (may be empty)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ListUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/entity.User'
+                  type: array
+              type: object
+      summary: List all users
+      tags:
+      - users
+  /users/update:
+    post:
+      consumes:
+      - application/json
+      description: Replaces the profile fields of an existing user.
+      parameters:
+      - description: Updated user fields
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.User'
+              type: object
+      summary: Update a user
+      tags:
+      - users
+schemes:
+- http
+swagger: "2.0"

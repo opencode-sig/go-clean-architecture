@@ -1,0 +1,10 @@
+/bin/
+/node_modules/
+/internal/web/static/*
+!/internal/web/static/index.html
+/logs/
+/tmp/
+.DS_Store
+/.agents/
+/agent/
+/.claude/

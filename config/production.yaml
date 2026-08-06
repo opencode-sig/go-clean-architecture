@@ -1,0 +1,24 @@
+server:
+  port: "8080"
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "zhisuo"
+  password: "zhisuo123!"
+  name: "zhisuo"
+  charset: "utf8mb4"
+  parse_time: "True"
+  loc: "Asia/Shanghai"
+cache:
+  type: "redis"
+  ttl: 300
+redis:
+  host: "redis"
+  port: 6379
+  db: 0
+log:
+  level: "warn"
+  file: "logs/app.log"
+  max_size: 500
+  max_age: 90
+  max_backups: 30
