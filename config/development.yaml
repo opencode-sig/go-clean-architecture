@@ -22,8 +22,8 @@ cache:
   ttl: 300
 redis:
   mode: "single"
-  host: "127.0.0.1"
-  port: 6379
+  addrs:
+    - "127.0.0.1:6379"
   db: 0
 rate_limit:
   rps: 20

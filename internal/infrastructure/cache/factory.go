@@ -1,8 +1,6 @@
 package cache
 
 import (
-	"fmt"
-
 	"github.com/redis/go-redis/v9"
 
 	"github.com/kun/zhisuo-server/internal/infrastructure"
@@ -20,10 +18,10 @@ func NewCache(cfg *infrastructure.Config) port.Cache {
 	}
 }
 
-// newUniversalClient builds a redis client for either topology.
-// cfg.RedisMode selects the topology: "cluster" uses cfg.RedisAddrs as the
-// seed nodes (cluster requires them), anything else falls back to the single
-// node host:port.
+// newUniversalClient builds a redis client for either topology. Both modes
+// read addresses from cfg.RedisAddrs (uniform): "cluster" feeds them all to
+// go-redis as seed nodes; "single" uses the first entry as the standalone
+// address and applies cfg.RedisDB.
 func newUniversalClient(cfg *infrastructure.Config) redis.UniversalClient {
 	if cfg.RedisMode == "cluster" {
 		return redis.NewClusterClient(&redis.ClusterOptions{
@@ -33,7 +31,7 @@ func newUniversalClient(cfg *infrastructure.Config) redis.UniversalClient {
 	}
 
 	return redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
+		Addr:     cfg.RedisAddrs[0],
 		DB:       cfg.RedisDB,
 		Password: cfg.RedisPass,
 	})
