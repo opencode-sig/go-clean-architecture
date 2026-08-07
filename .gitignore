@@ -5,6 +5,3 @@
 /logs/
 /tmp/
 .DS_Store
-/.agents/
-/agent/
-/.claude/
