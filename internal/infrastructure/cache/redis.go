@@ -12,13 +12,15 @@ import (
 
 // Redis implements port.Cache backed by a Redis server. Values are stored as
 // raw bytes under the given key; TTL is honored via Redis expiration.
+// It accepts a redis.UniversalClient, so both single-node (*redis.Client)
+// and cluster (*redis.ClusterClient) topologies are supported.
 type Redis struct {
-	client *redis.Client
+	client redis.UniversalClient
 	ttl    time.Duration // default TTL when Set passes ttl <= 0; zero disables
 }
 
-// NewRedis creates a Redis cache from an existing *redis.Client.
-func NewRedis(client *redis.Client) *Redis {
+// NewRedis creates a Redis cache from an existing redis client.
+func NewRedis(client redis.UniversalClient) *Redis {
 	return &Redis{client: client}
 }
 

@@ -32,6 +32,8 @@ type Config struct {
 	CacheEnabled    bool
 	CacheType       string
 	CacheTTL        time.Duration
+	RedisMode       string
+	RedisAddrs      []string
 	RedisHost       string
 	RedisPort       int
 	RedisDB         int
@@ -87,10 +89,12 @@ type configFile struct {
 		TTL     int    `yaml:"ttl"`     // default TTL in seconds
 	} `yaml:"cache"`
 	Redis struct {
-		Host     string `yaml:"host"`
-		Port     int    `yaml:"port"`
-		DB       int    `yaml:"db"`
-		Password string `yaml:"password"`
+		Mode     string   `yaml:"mode"`  // "single" (default) or "cluster"
+		Addrs    []string `yaml:"addrs"` // cluster node addresses, e.g. ["h1:6379","h2:6379"]
+		Host     string   `yaml:"host"`
+		Port     int      `yaml:"port"`
+		DB       int      `yaml:"db"`
+		Password string   `yaml:"password"`
 	} `yaml:"redis"`
 	RateLimit struct {
 		RPS   float64 `yaml:"rps"`
@@ -232,6 +236,12 @@ func applyFile(cfg *Config, cf *configFile) {
 	}
 	if cf.Cache.TTL > 0 {
 		cfg.CacheTTL = time.Duration(cf.Cache.TTL) * time.Second
+	}
+	if cf.Redis.Mode != "" {
+		cfg.RedisMode = cf.Redis.Mode
+	}
+	if len(cf.Redis.Addrs) > 0 {
+		cfg.RedisAddrs = cf.Redis.Addrs
 	}
 	if cf.Redis.Host != "" {
 		cfg.RedisHost = cf.Redis.Host

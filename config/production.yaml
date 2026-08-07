@@ -21,8 +21,11 @@ cache:
   type: "redis"
   ttl: 300
 redis:
-  host: "redis"
-  port: 6379
+  mode: "cluster"
+  addrs:
+    - "redis-1:6379"
+    - "redis-2:6379"
+    - "redis-3:6379"
   db: 0
 rate_limit:
   rps: 50
