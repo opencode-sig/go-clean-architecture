@@ -9,6 +9,7 @@ type User struct {
 	Username  string    `json:"username"`
 	Email     string    `json:"email"`
 	Bio       string    `json:"bio"`
+	Version   int64     `json:"version" gorm:"not null;default:0"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

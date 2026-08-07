@@ -3,7 +3,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/kun/zhisuo-server/internal/article/entity"
@@ -11,10 +10,13 @@ import (
 )
 
 // ErrUserNotFound is returned when Create is called with a non-existent user ID.
-var ErrUserNotFound = errors.New("user not found")
+var ErrUserNotFound = port.NewCodedError(port.CodeUserNotFound, "user not found")
 
 // ErrArticleNotFound is returned when an article is not found by ID.
-var ErrArticleNotFound = errors.New("article not found")
+var ErrArticleNotFound = port.NewCodedError(port.CodeArticleNotFound, "article not found")
+
+// ErrArticleVersionConflict is returned on an optimistic-lock version mismatch.
+var ErrArticleVersionConflict = port.NewCodedError(port.CodeVersionConflict, "article was updated concurrently")
 
 // ArticleUseCase orchestrates article creation, retrieval, update, and deletion.
 type ArticleUseCase struct {
@@ -60,31 +62,35 @@ func (uc *ArticleUseCase) GetByID(ctx context.Context, id int64) (*entity.Articl
 	return article, nil
 }
 
-// ListByUser returns all articles owned by the given user, ordered by newest first.
-func (uc *ArticleUseCase) ListByUser(ctx context.Context, userID int64) ([]entity.Article, error) {
-	articles, err := uc.repo.FindByUserID(ctx, userID)
+// ListByUser returns a page of articles owned by the given user, newest first.
+func (uc *ArticleUseCase) ListByUser(ctx context.Context, userID int64, p port.PageParams) (port.Page, error) {
+	articles, total, err := uc.repo.FindByUserID(ctx, userID, p.PageSize, (p.Page-1)*p.PageSize)
 	if err != nil {
-		return nil, fmt.Errorf("listing articles: %w", err)
+		return port.Page{}, fmt.Errorf("listing articles: %w", err)
 	}
 
-	return articles, nil
+	return port.NewPage(articles, total, p), nil
 }
 
 // List returns all articles across all users, ordered by newest first.
-func (uc *ArticleUseCase) List(ctx context.Context) ([]entity.Article, error) {
-	articles, err := uc.repo.FindAll(ctx)
+func (uc *ArticleUseCase) List(ctx context.Context, p port.PageParams) (port.Page, error) {
+	articles, total, err := uc.repo.FindAll(ctx, p.PageSize, (p.Page-1)*p.PageSize)
 	if err != nil {
-		return nil, fmt.Errorf("listing articles: %w", err)
+		return port.Page{}, fmt.Errorf("listing articles: %w", err)
 	}
 
-	return articles, nil
+	return port.NewPage(articles, total, p), nil
 }
 
 // Update replaces the title and content of an existing article identified by id.
-func (uc *ArticleUseCase) Update(ctx context.Context, id int64, title, content string) (*entity.Article, error) {
+// If expectedVersion is non-zero, it enforces optimistic concurrency.
+func (uc *ArticleUseCase) Update(ctx context.Context, id, expectedVersion int64, title, content string) (*entity.Article, error) {
 	article, err := uc.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("finding article for update: %w", err)
+	}
+	if expectedVersion != 0 && article.Version != expectedVersion {
+		return nil, ErrArticleVersionConflict
 	}
 
 	article.Title = title

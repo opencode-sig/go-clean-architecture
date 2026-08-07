@@ -50,34 +50,71 @@ func (r *ArticleMySQL) FindByID(ctx context.Context, id int64) (*entity.Article,
 	return &article, nil
 }
 
-// FindByUserID returns all articles owned by the given user, newest first.
-func (r *ArticleMySQL) FindByUserID(ctx context.Context, userID int64) ([]entity.Article, error) {
+// FindByUserID returns a page of articles owned by the given user, newest first.
+func (r *ArticleMySQL) FindByUserID(ctx context.Context, userID int64, limit, offset int) ([]entity.Article, int64, error) {
 	var articles []entity.Article
+	var total int64
+
+	if err := r.db.WithContext(ctx).
+		Model(&entity.Article{}).
+		Where("user_id = ?", userID).
+		Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count articles by user: %w", err)
+	}
+
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("id DESC").
+		Limit(limit).
+		Offset(offset).
 		Find(&articles).Error; err != nil {
-		return nil, fmt.Errorf("query articles by user: %w", err)
+		return nil, 0, fmt.Errorf("query articles by user: %w", err)
 	}
 
-	return articles, nil
+	return articles, total, nil
 }
 
-// FindAll returns every article, newest first.
-func (r *ArticleMySQL) FindAll(ctx context.Context) ([]entity.Article, error) {
+// FindAll returns a page of articles, newest first, plus the total count.
+func (r *ArticleMySQL) FindAll(ctx context.Context, limit, offset int) ([]entity.Article, int64, error) {
 	var articles []entity.Article
-	if err := r.db.WithContext(ctx).Order("id DESC").Find(&articles).Error; err != nil {
-		return nil, fmt.Errorf("query articles: %w", err)
+	var total int64
+
+	if err := r.db.WithContext(ctx).
+		Model(&entity.Article{}).
+		Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count articles: %w", err)
 	}
 
-	return articles, nil
+	if err := r.db.WithContext(ctx).
+		Order("id DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&articles).Error; err != nil {
+		return nil, 0, fmt.Errorf("query articles: %w", err)
+	}
+
+	return articles, total, nil
 }
 
-// Update persists changes to an existing article. Save performs a full-field UPDATE.
+// Update persists changes to an existing article with optimistic locking on Version.
 func (r *ArticleMySQL) Update(ctx context.Context, article *entity.Article) error {
-	if err := r.db.WithContext(ctx).Save(article).Error; err != nil {
-		return fmt.Errorf("update article: %w", err)
+	result := r.db.WithContext(ctx).
+		Model(&entity.Article{}).
+		Where("id = ? AND version = ?", article.ID, article.Version).
+		UpdateColumns(map[string]any{
+			"title":      article.Title,
+			"content":    article.Content,
+			"version":    gorm.Expr("version + 1"),
+			"updated_at": gorm.Expr("NOW()"),
+		})
+	if result.Error != nil {
+		return fmt.Errorf("update article: %w", result.Error)
 	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: %d", usecase.ErrArticleVersionConflict, article.ID)
+	}
+
+	article.Version++
 
 	return nil
 }

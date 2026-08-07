@@ -3,7 +3,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/kun/zhisuo-server/internal/comment/entity"
@@ -12,11 +11,11 @@ import (
 
 var (
 	// ErrUserNotFound is returned when the comment author's user ID does not exist.
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound = port.NewCodedError(port.CodeUserNotFound, "user not found")
 	// ErrArticleNotFound is returned when the target article ID does not exist.
-	ErrArticleNotFound = errors.New("article not found")
+	ErrArticleNotFound = port.NewCodedError(port.CodeArticleNotFound, "article not found")
 	// ErrCommentNotFound is returned when a comment cannot be found by ID.
-	ErrCommentNotFound = errors.New("comment not found")
+	ErrCommentNotFound = port.NewCodedError(port.CodeCommentNotFound, "comment not found")
 )
 
 // CommentUseCase orchestrates comment creation, listing, and deletion.
@@ -81,14 +80,14 @@ func (uc *CommentUseCase) Create(ctx context.Context, articleID, userID int64, c
 	return comment, nil
 }
 
-// ListByArticle returns all comments for a given article, ordered by creation time.
-func (uc *CommentUseCase) ListByArticle(ctx context.Context, articleID int64) ([]entity.Comment, error) {
-	comments, err := uc.repo.FindByArticleID(ctx, articleID)
+// ListByArticle returns a page of comments for a given article, ordered by creation time.
+func (uc *CommentUseCase) ListByArticle(ctx context.Context, articleID int64, p port.PageParams) (port.Page, error) {
+	comments, total, err := uc.repo.FindByArticleID(ctx, articleID, p.PageSize, (p.Page-1)*p.PageSize)
 	if err != nil {
-		return nil, fmt.Errorf("listing comments: %w", err)
+		return port.Page{}, fmt.Errorf("listing comments: %w", err)
 	}
 
-	return comments, nil
+	return port.NewPage(comments, total, p), nil
 }
 
 // Delete removes a comment by its ID. Returns an error if the comment does not exist.

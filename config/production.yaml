@@ -1,5 +1,9 @@
 server:
   port: "8080"
+  read_header_timeout: 5
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
 mysql:
   host: "127.0.0.1"
   port: 3306
@@ -9,6 +13,9 @@ mysql:
   charset: "utf8mb4"
   parse_time: "True"
   loc: "Asia/Shanghai"
+  max_open_conns: 100
+  max_idle_conns: 20
+  conn_max_lifetime: 300
 cache:
   type: "redis"
   ttl: 300
@@ -16,6 +23,12 @@ redis:
   host: "redis"
   port: 6379
   db: 0
+rate_limit:
+  rps: 50
+  burst: 100
+pagination:
+  default_page_size: 20
+  max_page_size: 100
 log:
   level: "warn"
   file: "logs/app.log"

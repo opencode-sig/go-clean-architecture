@@ -14,6 +14,8 @@ definitions:
         type: string
       user_id:
         type: integer
+      version:
+        type: integer
     type: object
   entity.Comment:
     properties:
@@ -28,6 +30,8 @@ definitions:
       updated_at:
         type: string
       user_id:
+        type: integer
+      version:
         type: integer
     type: object
   entity.User:
@@ -44,6 +48,8 @@ definitions:
         type: string
       username:
         type: string
+      version:
+        type: integer
     type: object
   handler.CreateArticleRequest:
     properties:
@@ -145,6 +151,32 @@ definitions:
     - id
     type: object
   handler.ListArticleRequest:
+    properties:
+      page:
+        example: 1
+        minimum: 1
+        type: integer
+      page_size:
+        example: 20
+        minimum: 1
+        type: integer
+    type: object
+  handler.ListByUserRequest:
+    properties:
+      page:
+        example: 1
+        minimum: 1
+        type: integer
+      page_size:
+        example: 20
+        minimum: 1
+        type: integer
+      user_id:
+        example: 1
+        minimum: 1
+        type: integer
+    required:
+    - user_id
     type: object
   handler.ListCommentsRequest:
     properties:
@@ -152,10 +184,27 @@ definitions:
         example: 1
         minimum: 1
         type: integer
+      page:
+        example: 1
+        minimum: 1
+        type: integer
+      page_size:
+        example: 20
+        minimum: 1
+        type: integer
     required:
     - article_id
     type: object
   handler.ListUserRequest:
+    properties:
+      page:
+        example: 1
+        minimum: 1
+        type: integer
+      page_size:
+        example: 20
+        minimum: 1
+        type: integer
     type: object
   handler.UpdateArticleRequest:
     properties:
@@ -171,6 +220,10 @@ definitions:
         example: Updated Title
         minLength: 1
         type: string
+      version:
+        example: 0
+        minimum: 0
+        type: integer
     required:
     - content
     - id
@@ -192,10 +245,24 @@ definitions:
         example: jane_doe
         minLength: 1
         type: string
+      version:
+        example: 0
+        minimum: 0
+        type: integer
     required:
     - email
     - id
     - username
+    type: object
+  port.Page:
+    properties:
+      items: {}
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
     type: object
   port.Response:
     properties:
@@ -212,6 +279,33 @@ info:
   title: 智索 API
   version: "1.0"
 paths:
+  /articles/by-user:
+    post:
+      consumes:
+      - application/json
+      description: Returns a page of articles owned by the given user.
+      parameters:
+      - description: User ID + pagination
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ListByUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/port.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/port.Page'
+              type: object
+      summary: List articles by user
+      tags:
+      - articles
   /articles/create:
     post:
       consumes:
@@ -292,9 +386,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns every article in the system.
+      description: Returns a page of articles, newest first.
       parameters:
-      - description: Request body (may be empty)
+      - description: Pagination (optional)
         in: body
         name: request
         required: true
@@ -310,9 +404,7 @@ paths:
             - $ref: '#/definitions/port.Response'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/entity.Article'
-                  type: array
+                  $ref: '#/definitions/port.Page'
               type: object
       summary: List all articles
       tags:
@@ -321,7 +413,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Replaces the title and content of an existing article.
+      description: Replaces the title and content of an existing article (optimistic
+        lock via version).
       parameters:
       - description: Article fields to update
         in: body
@@ -397,9 +490,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns all comments for a given article.
+      description: Returns a page of comments for a given article.
       parameters:
-      - description: Article ID
+      - description: Article ID + pagination
         in: body
         name: request
         required: true
@@ -415,9 +508,7 @@ paths:
             - $ref: '#/definitions/port.Response'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/entity.Comment'
-                  type: array
+                  $ref: '#/definitions/port.Page'
               type: object
       summary: List comments by article
       tags:
@@ -503,9 +594,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns every registered user.
+      description: Returns a page of registered users, newest first.
       parameters:
-      - description: Request body (may be empty)
+      - description: Pagination (optional)
         in: body
         name: request
         required: true
@@ -521,9 +612,7 @@ paths:
             - $ref: '#/definitions/port.Response'
             - properties:
                 data:
-                  items:
-                    $ref: '#/definitions/entity.User'
-                  type: array
+                  $ref: '#/definitions/port.Page'
               type: object
       summary: List all users
       tags:
@@ -532,7 +621,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Replaces the profile fields of an existing user.
+      description: Replaces the profile fields of an existing user (optimistic lock
+        via version).
       parameters:
       - description: Updated user fields
         in: body

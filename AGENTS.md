@@ -103,8 +103,15 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
 - `WithTx(tx port.Tx)` returns a new repository instance holding `tx.(*gorm.DB)`
 - Queries use GORM chained builders (`Where`, `Order`, `First`, `Find`); map `gorm.ErrRecordNotFound` to the usecase sentinel
 - **Delete must check `result.RowsAffected == 0`** — GORM does not error on zero-row delete; wrap the sentinel manually
-- **Updates must be full-field** — use `Save(&entity)` (GORM `Updates(struct)` skips zero values)
+- **List reads are paginated** — `FindAll/FindByUserID/FindByArticleID` take `(ctx, limit, offset)` and return `([]entity, total int64, err)`; use cases return `port.Page` via `port.NewPage`
+- **Updates use optimistic locking** on the `Version` field — `UpdateColumns` with `WHERE id = ? AND version = ?` bumps `version + 1`; zero rows affected maps to the module's `ErrXVersionConflict` sentinel. Single-entity timestamps use `NOW()` via GORM expression
 - `CreatedAt/UpdatedAt` are auto-managed by GORM (fields already named accordingly in entities)
+
+### Error mapping conventions
+
+- Sentinel errors are created with `port.NewCodedError(code, msg)` — they implement `port.ErrorCoder`, so `errors.Is` and `errors.As` both work
+- Handlers map errors with **one** call: `port.ResponseError(c, err)`; it resolves the code from the sentinel and never leaks internal messages. Do NOT hand-roll `errors.Is` chains with `port.Error(...)` per sentinel
+- Version conflicts map to code 1004 (`port.CodeVersionConflict`), rate limit to 1005, idempotency in-flight to 1006 (100x = common)
 
 ### Cache conventions
 
@@ -112,7 +119,8 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
 - Caching decorates the repository layer: `internal/<module>/adapter/repository/<module>_cache.go` implements the module's own `usecase.Repository` and wraps the MySQL one, so use cases are cache-agnostic
 - Cache is Cache-aside: reads populate on miss, mutations invalidate the affected key after a successful write
 - **`WithTx` must bypass the cache** — a cached decorator's `WithTx` returns the underlying repository's `WithTx` (transactions need uncommitted data)
-- Only single-entity `FindByID`-style reads are cached by default; list reads (`FindAll`, `FindByUserID`, `FindByArticleID`) and transactions are not
+- Single-entity `FindByID` reads use TTL cache; list reads (`FindAll`, `FindByUserID`) use a **short list TTL** (`listTTL`, capped at 15s min) keyed by `article:list:<scope>:<id>:<limit>:<offset>`
+- List caches are invalidated on writes via the optional `CacheListInvalidator` capability (`DeleteByPrefix`, `article:list:`); backends without it degrade to short TTL
 - Cache keys follow `module:entity:id` convention (e.g. `article:id:1`)
 - Use a jittered TTL (`jitterTTL`, ±10%) to avoid thundering-herd expiry, and cache a short-lived empty marker (`nil` value) for not-found results to guard against cache penetration
 - Cache backend failures must degrade to the database: if `Get` returns anything other than `port.ErrCacheMiss`, fall through to the repo (never fail the request because of the cache)
@@ -126,10 +134,20 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
   - Success: `port.Success(c, data)` → `{"code":0, "message":"", "data":...}`
   - Business error: `port.Error(c, code, msg)` → `{"code":1001, "message":"...", "data":null}`
   - Internal error: `port.ErrorInternal(c, msg)` → code 1999
-  - Error codes: 0=success, 100x=common, 200x=user, 300x=article, 400x=comment; map sentinel errors with `errors.Is()`
-- Handler logging uses `slog.InfoContext(c.Request.Context(), ...)` to propagate `trace_id`
+  - Prefer `port.ResponseError(c, err)` for usecase errors (see Error conventions)
+- Pagination request structs add optional `page`/`page_size` fields; handlers validate via `pageCfg.WithDefaults(...)` (injected `port.PageConfig`)
 - **All HTTP methods use POST** unless explicitly overridden — no GET/PUT/DELETE
-- Exception: `/swagger/*any`, `/metrics`, and the root catch-all use GET
+- Exception: `/healthz`, `/readyz`, `/swagger/*any`, `/metrics`, and the root catch-all use GET
+
+### Infra middleware (production hardening)
+
+- **Graceful shutdown**: `main.go` runs `srv.ListenAndServe` in a goroutine, waits on `signal.NotifyContext`, then `srv.Shutdown` with a 10s timeout
+- **Server timeouts**: `ReadHeaderTimeout`/`ReadTimeout`/`WriteTimeout`/`IdleTimeout` come from `cfg`
+- **Health**: `GET /healthz` (liveness) and `GET /readyz` (DB ping) via `NewHealthHandler(db)`
+- **Rate limiting**: per-IP token bucket `NewIPRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)` as a middleware; 429-style business response code 1005
+- **Idempotency**: `IdempotencyMiddleware(db)` makes POSTs with `Idempotency-Key` exactly-once. First request claims the key (`in_flight` INSERT), stores the completed response, then replays it; concurrent claims return code 1006 in-flight
+- **Lightweight tracing**: `requestID()` seeds `trace_id`/`span_id`/`parent_span_id` from `X-Trace-ID` (or generates); slog's `TraceHandler` attaches them to every log record. Metrics exemplars use `trace_id`
+- **Schema migration**: `infrastructure.Migrate(db, entities...)` runs `AutoMigrate` + normalizes pre-version `NULL` rows to 0 on startup
 
 ### Swagger / OpenAPI
 
@@ -139,6 +157,7 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
   swag init -g cmd/server/main.go --output docs
   ```
 - Request body types MUST be named structs (swag cannot generate schema for anonymous types)
+- Paginated responses use `port.Response{data=port.Page}`
 - Add `example`, `minimum`, `enums` struct tags to request types for richer Swagger UI output
 - Swagger UI is served at `GET /swagger/index.html` (excluded from logging/metrics middleware)
 
@@ -151,7 +170,7 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
 - Outputs JSON to both stdout and file (`logs/app.log`)
 - Uses `github.com/natefinch/lumberjack` for log rotation (size + daily)
 - Use case / adapter code calls `slog.Info()`, `slog.Error()`, etc. globally
-- Within request contexts, use `slog.InfoContext(ctx, ...)` to auto-attach `trace_id`
+- Within request contexts, use `slog.InfoContext(ctx, ...)` to auto-attach `request_id`/`trace_id`/`span_id`/`parent_span_id` (seeded by the `requestID` middleware)
 - Test helpers can silence logs with `slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))`
 
 ### Frontend

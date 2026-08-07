@@ -14,11 +14,12 @@ import (
 	"github.com/google/uuid"
 	articleHandler "github.com/kun/zhisuo-server/internal/article/adapter/handler"
 	commentHandler "github.com/kun/zhisuo-server/internal/comment/adapter/handler"
-	userHandler "github.com/kun/zhisuo-server/internal/user/adapter/handler"
 	"github.com/kun/zhisuo-server/internal/port"
+	userHandler "github.com/kun/zhisuo-server/internal/user/adapter/handler"
 	"github.com/kun/zhisuo-server/internal/web"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/gorm"
 )
 
 // Handlers aggregates all domain HTTP handlers for injection into the router.
@@ -34,8 +35,10 @@ func (ginLogWriter) Write(p []byte) (int, error) {
 	slog.Info(string(p[:len(p)-1]))
 	return len(p), nil
 }
-// NewRouter builds the Gin engine with recovery, request ID, structured logging, metrics middleware, API routes, and static file serving.
-func NewRouter(h Handlers) *gin.Engine {
+
+// NewRouter builds the Gin engine with recovery, request ID, structured logging,
+// metrics middleware, rate limiting, health endpoints, API routes, and static serving.
+func NewRouter(h Handlers, db *gorm.DB, rateLimiter *IPRateLimiter) *gin.Engine {
 	gin.DefaultWriter = ginLogWriter{}
 
 	r := gin.New()
@@ -46,6 +49,11 @@ func NewRouter(h Handlers) *gin.Engine {
 	r.Use(requestID())
 	r.Use(slogLogger())
 	r.Use(MetricsMiddleware())
+	r.Use(rateLimiter.Middleware(nil))
+	r.Use(IdempotencyMiddleware(db))
+
+	r.GET("/healthz", NewHealthHandler(db))
+	r.GET("/readyz", NewHealthHandler(db))
 
 	r.POST("/api/v1/users/list", h.User.List)
 	r.POST("/api/v1/users/create", h.User.Create)
@@ -58,6 +66,7 @@ func NewRouter(h Handlers) *gin.Engine {
 	r.POST("/api/v1/articles/get", h.Article.GetByID)
 	r.POST("/api/v1/articles/update", h.Article.Update)
 	r.POST("/api/v1/articles/delete", h.Article.Delete)
+	r.POST("/api/v1/articles/by-user", h.Article.ListByUser)
 
 	r.POST("/api/v1/comments/list", h.Comment.ListByArticle)
 	r.POST("/api/v1/comments/create", h.Comment.Create)
@@ -85,7 +94,14 @@ func requestID() gin.HandlerFunc {
 			id = uuid.New().String()
 		}
 
-		c.Request = c.Request.WithContext(SetReqID(c.Request.Context(), id))
+		traceID := c.GetHeader("X-Trace-ID")
+		if traceID == "" {
+			traceID = id
+		}
+
+		reqCtx := NewSpanContext(c.Request.Context(), traceID, "")
+		reqCtx = SetReqID(reqCtx, id)
+		c.Request = c.Request.WithContext(reqCtx)
 		c.Writer.Header().Set("X-Request-ID", id)
 		c.Next()
 	}
@@ -112,5 +128,3 @@ func slogLogger() gin.HandlerFunc {
 		)
 	}
 }
-
-

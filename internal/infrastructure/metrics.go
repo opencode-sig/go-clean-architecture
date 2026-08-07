@@ -78,7 +78,7 @@ func MetricsMiddleware() gin.HandlerFunc {
 
 		obs := httpRequestDurationSeconds.With(labels)
 		if eo, ok := obs.(prometheus.ExemplarObserver); ok {
-			if id, ok := c.Request.Context().Value(reqIDKey).(string); ok && id != "" {
+			if id, ok := currentTraceID(c.Request.Context()); ok && id != "" {
 				eo.ObserveWithExemplar(time.Since(start).Seconds(), prometheus.Labels{"trace_id": id})
 				return
 			}

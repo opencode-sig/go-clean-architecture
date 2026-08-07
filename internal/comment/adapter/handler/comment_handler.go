@@ -2,8 +2,6 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"github.com/kun/zhisuo-server/internal/comment/usecase"
 	"github.com/kun/zhisuo-server/internal/port"
@@ -11,27 +9,30 @@ import (
 
 // CommentHandler exposes comment CRUD operations as HTTP endpoints.
 type CommentHandler struct {
-	uc *usecase.CommentUseCase
+	uc      *usecase.CommentUseCase
+	pageCfg port.PageConfig
 }
 
 // NewCommentHandler creates a CommentHandler backed by the given use case.
-func NewCommentHandler(uc *usecase.CommentUseCase) *CommentHandler {
-	return &CommentHandler{uc: uc}
+func NewCommentHandler(uc *usecase.CommentUseCase, pageCfg port.PageConfig) *CommentHandler {
+	return &CommentHandler{uc: uc, pageCfg: pageCfg}
 }
 
 // ListCommentsRequest carries the article ID for listing comments.
 type ListCommentsRequest struct {
 	ArticleID int64 `json:"article_id" binding:"required" example:"1" minimum:"1"`
+	Page      int   `json:"page" example:"1" minimum:"1"`
+	PageSize  int   `json:"page_size" example:"20" minimum:"1"`
 }
 
 // ListByArticle godoc
 // @Summary      List comments by article
-// @Description  Returns all comments for a given article.
+// @Description  Returns a page of comments for a given article.
 // @Tags         comments
 // @Accept       json
 // @Produce      json
-// @Param        request body ListCommentsRequest true "Article ID"
-// @Success      200  {object}  port.Response{data=[]entity.Comment}
+// @Param        request body ListCommentsRequest true "Article ID + pagination"
+// @Success      200  {object}  port.Response{data=port.Page}
 // @Router       /comments/list [post]
 func (h *CommentHandler) ListByArticle(c *gin.Context) {
 	var req ListCommentsRequest
@@ -40,13 +41,13 @@ func (h *CommentHandler) ListByArticle(c *gin.Context) {
 		return
 	}
 
-	comments, err := h.uc.ListByArticle(c.Request.Context(), req.ArticleID)
+	page, err := h.uc.ListByArticle(c.Request.Context(), req.ArticleID, h.pageCfg.WithDefaults(req.Page, req.PageSize))
 	if err != nil {
-		port.ErrorInternal(c, err.Error())
+		port.ResponseError(c, err)
 		return
 	}
 
-	port.Success(c, comments)
+	port.Success(c, page)
 }
 
 // CreateCommentRequest carries the JSON fields required to create a comment.
@@ -74,14 +75,7 @@ func (h *CommentHandler) Create(c *gin.Context) {
 
 	comment, err := h.uc.Create(c.Request.Context(), req.ArticleID, req.UserID, req.Content)
 	if err != nil {
-		switch {
-		case errors.Is(err, usecase.ErrUserNotFound):
-			port.Error(c, port.CodeUserNotFound, err.Error())
-		case errors.Is(err, usecase.ErrArticleNotFound):
-			port.Error(c, port.CodeArticleNotFound, err.Error())
-		default:
-			port.ErrorInternal(c, err.Error())
-		}
+		port.ResponseError(c, err)
 		return
 	}
 
@@ -110,11 +104,7 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.uc.Delete(c.Request.Context(), req.ID); err != nil {
-		if errors.Is(err, usecase.ErrCommentNotFound) {
-			port.Error(c, port.CodeCommentNotFound, "comment not found")
-			return
-		}
-		port.ErrorInternal(c, err.Error())
+		port.ResponseError(c, err)
 		return
 	}
 

@@ -50,17 +50,28 @@ func (r *CommentMySQL) FindByID(ctx context.Context, id int64) (*entity.Comment,
 	return &comment, nil
 }
 
-// FindByArticleID returns all comments belonging to the given article, ordered ascending by ID.
-func (r *CommentMySQL) FindByArticleID(ctx context.Context, articleID int64) ([]entity.Comment, error) {
+// FindByArticleID returns a page of comments for the article plus the total count.
+func (r *CommentMySQL) FindByArticleID(ctx context.Context, articleID int64, limit, offset int) ([]entity.Comment, int64, error) {
 	var comments []entity.Comment
+	var total int64
+
+	if err := r.db.WithContext(ctx).
+		Model(&entity.Comment{}).
+		Where("article_id = ?", articleID).
+		Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count comments by article: %w", err)
+	}
+
 	if err := r.db.WithContext(ctx).
 		Where("article_id = ?", articleID).
 		Order("id ASC").
+		Limit(limit).
+		Offset(offset).
 		Find(&comments).Error; err != nil {
-		return nil, fmt.Errorf("query comments by article: %w", err)
+		return nil, 0, fmt.Errorf("query comments by article: %w", err)
 	}
 
-	return comments, nil
+	return comments, total, nil
 }
 
 // Delete removes a comment row by ID. Returns an error if no row was affected.

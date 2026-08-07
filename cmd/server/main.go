@@ -11,19 +11,26 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	_ "github.com/kun/zhisuo-server/docs"
 
 	articleHandler "github.com/kun/zhisuo-server/internal/article/adapter/handler"
 	articleRepo "github.com/kun/zhisuo-server/internal/article/adapter/repository"
 	articleService "github.com/kun/zhisuo-server/internal/article/adapter/service"
+	articleEntity "github.com/kun/zhisuo-server/internal/article/entity"
 	articleUsecase "github.com/kun/zhisuo-server/internal/article/usecase"
 
 	commentHandler "github.com/kun/zhisuo-server/internal/comment/adapter/handler"
 	commentRepo "github.com/kun/zhisuo-server/internal/comment/adapter/repository"
+	commentEntity "github.com/kun/zhisuo-server/internal/comment/entity"
 	commentUsecase "github.com/kun/zhisuo-server/internal/comment/usecase"
 
 	"github.com/kun/zhisuo-server/internal/infrastructure"
@@ -32,11 +39,14 @@ import (
 	userHandler "github.com/kun/zhisuo-server/internal/user/adapter/handler"
 	userRepo "github.com/kun/zhisuo-server/internal/user/adapter/repository"
 	userSvc "github.com/kun/zhisuo-server/internal/user/adapter/service"
+	userEntity "github.com/kun/zhisuo-server/internal/user/entity"
 	userUsecase "github.com/kun/zhisuo-server/internal/user/usecase"
+
+	"github.com/kun/zhisuo-server/internal/port"
 )
 
 // main loads configuration, initializes infrastructure, wires all layers,
-// and starts the HTTP listener. It exits if the database connection fails.
+// runs schema migration, and starts the HTTP server with graceful shutdown.
 func main() {
 	configPath := flag.String("config", "", "path to config YAML file (default: config.yaml or config/development.yaml)")
 	flag.Parse()
@@ -45,16 +55,21 @@ func main() {
 	infrastructure.InitLogger(cfg)
 	infrastructure.InitMetrics()
 
-	db, err := infrastructure.NewDB(cfg.DSN())
+	db, err := infrastructure.NewDB(cfg)
 	if err != nil {
 		slog.Error("database connection failed", "error", err)
-		return
+		os.Exit(1)
 	}
 	defer func() {
 		if sqlDB, e := db.DB(); e == nil {
 			_ = sqlDB.Close()
 		}
 	}()
+
+	if err := infrastructure.Migrate(db, &userEntity.User{}, &articleEntity.Article{}, &commentEntity.Comment{}); err != nil {
+		slog.Error("schema migration failed", "error", err)
+		os.Exit(1)
+	}
 
 	uRepo := userRepo.NewUserMySQL(db)
 	aRepo := articleRepo.NewArticleMySQL(db)
@@ -72,18 +87,45 @@ func main() {
 	articleUseCase := articleUsecase.NewArticleUseCase(aRepoWithCache, userService)
 	commentUseCase := commentUsecase.NewCommentUseCase(cRepo, txManager, articleService, userService)
 
-	userAPI := userHandler.NewUserHandler(userUseCase)
-	articleAPI := articleHandler.NewArticleHandler(articleUseCase)
-	commentAPI := commentHandler.NewCommentHandler(commentUseCase)
+	pageCfg := port.PageConfig{DefaultSize: cfg.DefaultPageSize, MaxSize: cfg.MaxPageSize}
+
+	userAPI := userHandler.NewUserHandler(userUseCase, pageCfg)
+	articleAPI := articleHandler.NewArticleHandler(articleUseCase, pageCfg)
+	commentAPI := commentHandler.NewCommentHandler(commentUseCase, pageCfg)
 
 	router := infrastructure.NewRouter(infrastructure.Handlers{
 		User:    userAPI,
 		Article: articleAPI,
 		Comment: commentAPI,
-	})
+	}, db, infrastructure.NewIPRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst))
 
-	slog.Info("server starting", "port", cfg.ServerPort)
-	if err := http.ListenAndServe(":"+cfg.ServerPort, router); err != nil {
-		slog.Error("server failed", "error", err)
+	srv := &http.Server{
+		Addr:              ":" + cfg.ServerPort,
+		Handler:           router,
+		ReadHeaderTimeout: cfg.ServerReadHdrT,
+		ReadTimeout:       cfg.ServerReadT,
+		WriteTimeout:      cfg.ServerWriteT,
+		IdleTimeout:       cfg.ServerIdleT,
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		slog.Info("server starting", "port", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server failed", "error", err)
+			stop()
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("shutting down server")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown failed", "error", err)
+	}
+	slog.Info("server stopped")
 }

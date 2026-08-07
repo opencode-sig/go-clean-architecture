@@ -6,5 +6,6 @@ import "embed"
 
 // FS provides access to the compiled frontend assets embedded from the
 // static/ directory. It is consumed by the HTTP router to serve SPA files.
+//
 //go:embed static
 var FS embed.FS

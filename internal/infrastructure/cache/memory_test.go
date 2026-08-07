@@ -87,3 +87,22 @@ func TestMemoryNoTTLneverExpires(t *testing.T) {
 		t.Fatalf("expected value to persist, got %v", err)
 	}
 }
+
+func TestMemoryDeleteByPrefix(t *testing.T) {
+	c := NewMemory(time.Minute)
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		if err := c.Set(ctx, "article:list:"+string(rune(i)), []byte("x"), time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.Set(ctx, "other:key", []byte("y"), time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteByPrefix(ctx, "article:list:"); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.items) != 1 {
+		t.Fatalf("expected only non-matching key to remain, got %d items", len(c.items))
+	}
+}

@@ -50,21 +50,48 @@ func (r *UserMySQL) FindByID(ctx context.Context, id int64) (*entity.User, error
 	return &user, nil
 }
 
-// FindAll returns every user row ordered by ID descending.
-func (r *UserMySQL) FindAll(ctx context.Context) ([]entity.User, error) {
+// FindAll returns a page of users ordered by ID descending plus the total count.
+func (r *UserMySQL) FindAll(ctx context.Context, limit, offset int) ([]entity.User, int64, error) {
 	var users []entity.User
-	if err := r.db.WithContext(ctx).Order("id DESC").Find(&users).Error; err != nil {
-		return nil, fmt.Errorf("query users: %w", err)
+	var total int64
+
+	if err := r.db.WithContext(ctx).
+		Model(&entity.User{}).
+		Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count users: %w", err)
 	}
 
-	return users, nil
+	if err := r.db.WithContext(ctx).
+		Order("id DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&users).Error; err != nil {
+		return nil, 0, fmt.Errorf("query users: %w", err)
+	}
+
+	return users, total, nil
 }
 
-// Update persists all fields of the user. Save performs a full-field UPDATE.
+// Update persists all fields of the user with optimistic locking on Version.
 func (r *UserMySQL) Update(ctx context.Context, user *entity.User) error {
-	if err := r.db.WithContext(ctx).Save(user).Error; err != nil {
-		return fmt.Errorf("update user: %w", err)
+	result := r.db.WithContext(ctx).
+		Model(&entity.User{}).
+		Where("id = ? AND version = ?", user.ID, user.Version).
+		UpdateColumns(map[string]any{
+			"username":   user.Username,
+			"email":      user.Email,
+			"bio":        user.Bio,
+			"version":    gorm.Expr("version + 1"),
+			"updated_at": gorm.Expr("NOW()"),
+		})
+	if result.Error != nil {
+		return fmt.Errorf("update user: %w", result.Error)
 	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: %d", usecase.ErrUserVersionConflict, user.ID)
+	}
+
+	user.Version++
 
 	return nil
 }

@@ -3,14 +3,17 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"github.com/kun/zhisuo-server/internal/port"
 	"github.com/kun/zhisuo-server/internal/user/entity"
 )
 
 // ErrUserNotFound is returned when a user cannot be found by ID.
-var ErrUserNotFound = errors.New("user not found")
+var ErrUserNotFound = port.NewCodedError(port.CodeUserNotFound, "user not found")
+
+// ErrUserVersionConflict is returned when an optimistic-lock version mismatch occurs.
+var ErrUserVersionConflict = port.NewCodedError(port.CodeVersionConflict, "user was updated concurrently")
 
 // UserUseCase orchestrates user business operations.
 // It depends on Repository to abstract persistence.
@@ -48,21 +51,26 @@ func (uc *UserUseCase) GetByID(ctx context.Context, id int64) (*entity.User, err
 	return user, nil
 }
 
-// List returns all users, newest first.
-func (uc *UserUseCase) List(ctx context.Context) ([]entity.User, error) {
-	users, err := uc.repo.FindAll(ctx)
+// List returns a page of users, newest first.
+func (uc *UserUseCase) List(ctx context.Context, p port.PageParams) (port.Page, error) {
+	users, total, err := uc.repo.FindAll(ctx, p.PageSize, (p.Page-1)*p.PageSize)
 	if err != nil {
-		return nil, fmt.Errorf("listing users: %w", err)
+		return port.Page{}, fmt.Errorf("listing users: %w", err)
 	}
 
-	return users, nil
+	return port.NewPage(users, total, p), nil
 }
 
 // Update replaces the profile fields of an existing user identified by ID.
-func (uc *UserUseCase) Update(ctx context.Context, id int64, username, email, bio string) (*entity.User, error) {
+// If expectedVersion is non-zero, it enforces optimistic concurrency: the update
+// fails with ErrUserVersionConflict when the stored version differs.
+func (uc *UserUseCase) Update(ctx context.Context, id int64, expectedVersion int64, username, email, bio string) (*entity.User, error) {
 	user, err := uc.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("finding user for update: %w", err)
+	}
+	if expectedVersion != 0 && user.Version != expectedVersion {
+		return nil, ErrUserVersionConflict
 	}
 
 	user.Username = username

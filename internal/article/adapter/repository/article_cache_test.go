@@ -27,11 +27,11 @@ func (f *fakeRepo) FindByID(_ context.Context, id int64) (*entity.Article, error
 	}
 	return nil, usecase.ErrArticleNotFound
 }
-func (f *fakeRepo) FindByUserID(context.Context, int64) ([]entity.Article, error) {
-	return nil, nil
+func (f *fakeRepo) FindByUserID(context.Context, int64, int, int) ([]entity.Article, int64, error) {
+	return nil, 0, nil
 }
-func (f *fakeRepo) FindAll(context.Context) ([]entity.Article, error) {
-	return nil, nil
+func (f *fakeRepo) FindAll(context.Context, int, int) ([]entity.Article, int64, error) {
+	return nil, 0, nil
 }
 func (f *fakeRepo) Update(context.Context, *entity.Article) error {
 	return nil
@@ -116,5 +116,43 @@ func TestArticleCachePenetrationGuardNoRow(t *testing.T) {
 	v, ok := fake.data[cacheKey(2)]
 	if !ok || len(v) != 0 {
 		t.Fatalf("expected empty miss marker cached, got %q ok=%v", v, ok)
+	}
+}
+
+func TestArticleCacheListPopulatesAndHits(t *testing.T) {
+	base := &fakeRepo{articles: map[int64]*entity.Article{1: {ID: 1, Title: "T"}}}
+	fake := &fakeCache{data: make(map[string][]byte)}
+	c := NewArticleCache(base, fake, time.Minute)
+
+	items, total, err := c.FindAll(context.Background(), 20, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || len(items) != 0 {
+		t.Fatalf("unexpected page %v total=%d (fakeRepo returns empty)", items, total)
+	}
+
+	key := cacheListKey("all", 0, 20, 0)
+	if v, ok := fake.data[key]; !ok || len(v) == 0 {
+		t.Fatalf("expected list page cached under %q, got ok=%v val=%q", key, ok, v)
+	}
+}
+
+func TestArticleCacheListInvalidatesOnWrite(t *testing.T) {
+	base := &fakeRepo{articles: map[int64]*entity.Article{1: {ID: 1, Title: "T"}}}
+	fake := &fakeCache{data: make(map[string][]byte)}
+	c := NewArticleCache(base, fake, time.Minute)
+
+	if _, _, err := c.FindAll(context.Background(), 20, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// fakeCache does not implement CacheListInvalidator, so writes are a no-op
+	// there but must not error.
+	if err := c.Update(context.Background(), &entity.Article{ID: 1, Title: "T2"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Delete(context.Background(), 1); err != nil {
+		t.Fatal(err)
 	}
 }

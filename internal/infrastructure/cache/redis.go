@@ -60,10 +60,34 @@ func (r *Redis) Del(ctx context.Context, keys ...string) error {
 	return r.client.Del(ctx, keys...).Err()
 }
 
+// DeleteByPrefix removes all keys matching the given glob prefix via SCAN.
+func (r *Redis) DeleteByPrefix(ctx context.Context, prefix string) error {
+	iter := r.client.Scan(ctx, 0, prefix+"*", 100).Iterator()
+	var batch []string
+	for iter.Next(ctx) {
+		batch = append(batch, iter.Val())
+		if len(batch) >= 100 {
+			if err := r.client.Del(ctx, batch...).Err(); err != nil {
+				return err
+			}
+			batch = nil
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+	if len(batch) > 0 {
+		return r.client.Del(ctx, batch...).Err()
+	}
+
+	return nil
+}
+
 // Close releases the underlying Redis connection pool.
 func (r *Redis) Close() error {
 	return r.client.Close()
 }
 
-// compile-time assertion: Redis implements port.Cache
+// compile-time assertions: Redis implements port.Cache and CacheListInvalidator
 var _ port.Cache = (*Redis)(nil)
+var _ port.CacheListInvalidator = (*Redis)(nil)

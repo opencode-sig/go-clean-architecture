@@ -15,6 +15,52 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/articles/by-user": {
+            "post": {
+                "description": "Returns a page of articles owned by the given user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "articles"
+                ],
+                "summary": "List articles by user",
+                "parameters": [
+                    {
+                        "description": "User ID + pagination",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ListByUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/port.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/port.Page"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/articles/create": {
             "post": {
                 "description": "Creates a new article owned by the specified user.",
@@ -143,7 +189,7 @@ const docTemplate = `{
         },
         "/articles/list": {
             "post": {
-                "description": "Returns every article in the system.",
+                "description": "Returns a page of articles, newest first.",
                 "consumes": [
                     "application/json"
                 ],
@@ -156,7 +202,7 @@ const docTemplate = `{
                 "summary": "List all articles",
                 "parameters": [
                     {
-                        "description": "Request body (may be empty)",
+                        "description": "Pagination (optional)",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -177,10 +223,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/entity.Article"
-                                            }
+                                            "$ref": "#/definitions/port.Page"
                                         }
                                     }
                                 }
@@ -192,7 +235,7 @@ const docTemplate = `{
         },
         "/articles/update": {
             "post": {
-                "description": "Replaces the title and content of an existing article.",
+                "description": "Replaces the title and content of an existing article (optimistic lock via version).",
                 "consumes": [
                     "application/json"
                 ],
@@ -318,7 +361,7 @@ const docTemplate = `{
         },
         "/comments/list": {
             "post": {
-                "description": "Returns all comments for a given article.",
+                "description": "Returns a page of comments for a given article.",
                 "consumes": [
                     "application/json"
                 ],
@@ -331,7 +374,7 @@ const docTemplate = `{
                 "summary": "List comments by article",
                 "parameters": [
                     {
-                        "description": "Article ID",
+                        "description": "Article ID + pagination",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -352,10 +395,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/entity.Comment"
-                                            }
+                                            "$ref": "#/definitions/port.Page"
                                         }
                                     }
                                 }
@@ -493,7 +533,7 @@ const docTemplate = `{
         },
         "/users/list": {
             "post": {
-                "description": "Returns every registered user.",
+                "description": "Returns a page of registered users, newest first.",
                 "consumes": [
                     "application/json"
                 ],
@@ -506,7 +546,7 @@ const docTemplate = `{
                 "summary": "List all users",
                 "parameters": [
                     {
-                        "description": "Request body (may be empty)",
+                        "description": "Pagination (optional)",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -527,10 +567,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/entity.User"
-                                            }
+                                            "$ref": "#/definitions/port.Page"
                                         }
                                     }
                                 }
@@ -542,7 +579,7 @@ const docTemplate = `{
         },
         "/users/update": {
             "post": {
-                "description": "Replaces the profile fields of an existing user.",
+                "description": "Replaces the profile fields of an existing user (optimistic lock via version).",
                 "consumes": [
                     "application/json"
                 ],
@@ -608,6 +645,9 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                },
+                "version": {
+                    "type": "integer"
                 }
             }
         },
@@ -630,6 +670,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
+                    "type": "integer"
+                },
+                "version": {
                     "type": "integer"
                 }
             }
@@ -654,6 +697,9 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                },
+                "version": {
+                    "type": "integer"
                 }
             }
         },
@@ -795,7 +841,42 @@ const docTemplate = `{
             }
         },
         "handler.ListArticleRequest": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 20
+                }
+            }
+        },
+        "handler.ListByUserRequest": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 20
+                },
+                "user_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                }
+            }
         },
         "handler.ListCommentsRequest": {
             "type": "object",
@@ -807,11 +888,33 @@ const docTemplate = `{
                     "type": "integer",
                     "minimum": 1,
                     "example": 1
+                },
+                "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 20
                 }
             }
         },
         "handler.ListUserRequest": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 20
+                }
+            }
         },
         "handler.UpdateArticleRequest": {
             "type": "object",
@@ -835,6 +938,11 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 1,
                     "example": "Updated Title"
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 0
                 }
             }
         },
@@ -863,6 +971,26 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 1,
                     "example": "jane_doe"
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 0
+                }
+            }
+        },
+        "port.Page": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

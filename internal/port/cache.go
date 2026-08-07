@@ -32,3 +32,11 @@ type Cache interface {
 	// Del removes the given keys.
 	Del(ctx context.Context, keys ...string) error
 }
+
+// CacheListInvalidator is an optional capability implemented by cache backends
+// that can delete all keys with a given prefix. List caches are keyed by
+// page/size, so writes must invalidate them by prefix. Backends without this
+// capability degrade to short TTLs.
+type CacheListInvalidator interface {
+	DeleteByPrefix(ctx context.Context, prefix string) error
+}

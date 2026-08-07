@@ -6,6 +6,7 @@ package cache
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,5 +86,19 @@ func (m *Memory) Del(_ context.Context, keys ...string) error {
 	return nil
 }
 
-// compile-time assertion: Memory implements port.Cache
+// DeleteByPrefix removes all keys starting with the given prefix.
+func (m *Memory) DeleteByPrefix(_ context.Context, prefix string) error {
+	m.mu.Lock()
+	for key := range m.items {
+		if strings.HasPrefix(key, prefix) {
+			delete(m.items, key)
+		}
+	}
+	m.mu.Unlock()
+
+	return nil
+}
+
+// compile-time assertions: Memory implements port.Cache and CacheListInvalidator
 var _ port.Cache = (*Memory)(nil)
+var _ port.CacheListInvalidator = (*Memory)(nil)

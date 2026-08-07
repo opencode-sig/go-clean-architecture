@@ -17,8 +17,8 @@ type Repository interface {
 	Create(ctx context.Context, comment *entity.Comment) error
 	// FindByID retrieves a single comment by ID, or returns an error if not found.
 	FindByID(ctx context.Context, id int64) (*entity.Comment, error)
-	// FindByArticleID returns all comments on the given article, newest first.
-	FindByArticleID(ctx context.Context, articleID int64) ([]entity.Comment, error)
+	// FindByArticleID returns a page of comments on the given article plus total count.
+	FindByArticleID(ctx context.Context, articleID int64, limit, offset int) ([]entity.Comment, int64, error)
 	// Delete removes a comment by ID. Returns an error if the comment does not exist.
 	Delete(ctx context.Context, id int64) error
 }
