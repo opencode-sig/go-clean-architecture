@@ -75,16 +75,20 @@ func main() {
 	aRepo := articleRepo.NewArticleMySQL(db)
 	cRepo := commentRepo.NewCommentMySQL(db)
 
-	cache := infraCache.NewCache(cfg)
-	aRepoWithCache := articleRepo.NewArticleCache(aRepo, cache, cfg.CacheTTL)
+	// Cache-aside decorator is applied only when caching is enabled in config.
+	var aRepoEffective articleUsecase.Repository = aRepo
+	if cfg.CacheEnabled {
+		cache := infraCache.NewCache(cfg)
+		aRepoEffective = articleRepo.NewArticleCache(aRepo, cache, cfg.CacheTTL)
+	}
 
 	txManager := infrastructure.NewTxManager(db)
 
 	userService := userSvc.NewUserService(uRepo)
-	articleService := articleService.NewArticleService(aRepoWithCache)
+	articleService := articleService.NewArticleService(aRepoEffective)
 
 	userUseCase := userUsecase.NewUserUseCase(uRepo)
-	articleUseCase := articleUsecase.NewArticleUseCase(aRepoWithCache, userService)
+	articleUseCase := articleUsecase.NewArticleUseCase(aRepoEffective, userService)
 	commentUseCase := commentUsecase.NewCommentUseCase(cRepo, txManager, articleService, userService)
 
 	pageCfg := port.PageConfig{DefaultSize: cfg.DefaultPageSize, MaxSize: cfg.MaxPageSize}

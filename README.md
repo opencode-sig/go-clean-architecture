@@ -51,7 +51,8 @@ go run ./cmd/server/ -config config/production.yaml
 | `mysql.max_open_conns` | `25` | 连接池最大打开连接数 |
 | `mysql.max_idle_conns` | `5` | 连接池最大空闲连接数 |
 | `mysql.conn_max_lifetime` | `300` | 连接最大生命周期（秒） |
-| `cache.type` | `memory` | 缓存后端 (`memory`/`redis`) |
+| `cache.enabled` | `true` | 全局缓存开关：`false` 时绕过所有缓存装饰器（直连 DB） |
+| `cache.type` | `memory` | 缓存后端 (`memory`/`redis`)，仅 `enabled=true` 时生效 |
 | `cache.ttl` | `300` | 缓存默认 TTL（秒） |
 | `redis.host` | `127.0.0.1` | Redis 主机 |
 | `redis.port` | `6379` | Redis 端口 |

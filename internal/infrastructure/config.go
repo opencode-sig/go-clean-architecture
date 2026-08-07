@@ -29,6 +29,7 @@ type Config struct {
 	DBMaxOpenConns  int
 	DBMaxIdleConns  int
 	DBConnMaxLive   time.Duration
+	CacheEnabled    bool
 	CacheType       string
 	CacheTTL        time.Duration
 	RedisHost       string
@@ -81,8 +82,9 @@ type configFile struct {
 		ConnMaxLife  int    `yaml:"conn_max_lifetime"`
 	} `yaml:"mysql"`
 	Cache struct {
-		Type string `yaml:"type"` // "memory" or "redis"
-		TTL  int    `yaml:"ttl"`  // default TTL in seconds
+		Enabled *bool  `yaml:"enabled"` // global cache switch; nil means enabled
+		Type    string `yaml:"type"`    // "memory" or "redis"
+		TTL     int    `yaml:"ttl"`     // default TTL in seconds
 	} `yaml:"cache"`
 	Redis struct {
 		Host     string `yaml:"host"`
@@ -221,6 +223,11 @@ func applyFile(cfg *Config, cf *configFile) {
 	}
 	if cf.Cache.Type != "" {
 		cfg.CacheType = cf.Cache.Type
+	}
+	if cf.Cache.Enabled != nil {
+		cfg.CacheEnabled = *cf.Cache.Enabled
+	} else {
+		cfg.CacheEnabled = true
 	}
 	if cf.Cache.TTL > 0 {
 		cfg.CacheTTL = time.Duration(cf.Cache.TTL) * time.Second
