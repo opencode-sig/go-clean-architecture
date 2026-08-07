@@ -129,6 +129,7 @@ func LoadConfig(configPath string) *Config {
 		DBMaxOpenConns:  25,
 		DBMaxIdleConns:  5,
 		DBConnMaxLive:   5 * time.Minute,
+		CacheEnabled:    true,
 		CacheType:       "memory",
 		CacheTTL:        5 * time.Minute,
 		RedisHost:       "127.0.0.1",
