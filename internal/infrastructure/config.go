@@ -35,6 +35,7 @@ type Config struct {
 	RedisMode       string
 	RedisAddrs      []string
 	RedisDB         int
+	RedisUser       string
 	RedisPass       string
 	RateLimitRPS    float64
 	RateLimitBurst  int
@@ -90,6 +91,7 @@ type configFile struct {
 		Mode     string   `yaml:"mode"`  // "single" (default) or "cluster"
 		Addrs    []string `yaml:"addrs"` // node addresses, e.g. ["h1:6379"] or ["h1:6379","h2:6379"]
 		DB       int      `yaml:"db"`    // single-mode database index
+		Username string   `yaml:"username"`
 		Password string   `yaml:"password"`
 	} `yaml:"redis"`
 	RateLimit struct {
@@ -241,6 +243,9 @@ func applyFile(cfg *Config, cf *configFile) {
 	}
 	if cf.Redis.DB > 0 {
 		cfg.RedisDB = cf.Redis.DB
+	}
+	if cf.Redis.Username != "" {
+		cfg.RedisUser = cf.Redis.Username
 	}
 	if cf.Redis.Password != "" {
 		cfg.RedisPass = cf.Redis.Password

@@ -26,6 +26,7 @@ redis:
     - "redis-1:6379"
     - "redis-2:6379"
     - "redis-3:6379"
+  username: ""
   password: ""
 rate_limit:
   rps: 50

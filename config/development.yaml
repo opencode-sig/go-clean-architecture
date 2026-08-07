@@ -25,6 +25,8 @@ redis:
   addrs:
     - "127.0.0.1:6379"
   db: 0
+  username: ""
+  password: ""
 rate_limit:
   rps: 20
   burst: 40

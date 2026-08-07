@@ -57,6 +57,8 @@ go run ./cmd/server/ -config config/production.yaml
 | `redis.mode` | `single` | Redis 拓扑 (`single`/`cluster`) |
 | `redis.addrs` | `["127.0.0.1:6379"]` | 节点地址列表，如 `["h1:6379"]`（单节点）或 `["h1:6379","h2:6379"]`（集群）；两种模式统一从该项读取 |
 | `redis.db` | `0` | Redis 数据库编号（仅单节点模式） |
+| `redis.username` | — | ACL 用户名（Redis 6+；留空用默认用户，两模式均生效） |
+| `redis.password` | — | 密码（两模式均生效） |
 | `rate_limit.rps` | `10` | 每 IP 每秒请求数 |
 | `rate_limit.burst` | `50` | 每 IP 令牌桶容量 |
 | `pagination.default_page_size` | `20` | 列表默认页大小 |

@@ -19,13 +19,14 @@ func NewCache(cfg *infrastructure.Config) port.Cache {
 }
 
 // newUniversalClient builds a redis client for either topology. Both modes
-// read addresses from cfg.RedisAddrs (uniform): "cluster" feeds them all to
-// go-redis as seed nodes; "single" uses the first entry as the standalone
-// address and applies cfg.RedisDB.
+// read addresses from cfg.RedisAddrs (uniform) and authenticate with
+// cfg.RedisUser/cfg.RedisPass (ACL): "cluster" feeds the addrs to go-redis as
+// seed nodes; "single" uses the first entry and applies cfg.RedisDB.
 func newUniversalClient(cfg *infrastructure.Config) redis.UniversalClient {
 	if cfg.RedisMode == "cluster" {
 		return redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:    cfg.RedisAddrs,
+			Username: cfg.RedisUser,
 			Password: cfg.RedisPass,
 		})
 	}
@@ -33,6 +34,7 @@ func newUniversalClient(cfg *infrastructure.Config) redis.UniversalClient {
 	return redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddrs[0],
 		DB:       cfg.RedisDB,
+		Username: cfg.RedisUser,
 		Password: cfg.RedisPass,
 	})
 }
