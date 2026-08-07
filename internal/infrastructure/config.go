@@ -37,6 +37,9 @@ type Config struct {
 	RedisDB         int
 	RedisUser       string
 	RedisPass       string
+	RedisPoolSize   int
+	RedisMinIdle    int
+	RedisMaxIdleT   time.Duration
 	RateLimitRPS    float64
 	RateLimitBurst  int
 	DefaultPageSize int
@@ -88,11 +91,14 @@ type configFile struct {
 		TTL     int    `yaml:"ttl"`     // default TTL in seconds
 	} `yaml:"cache"`
 	Redis struct {
-		Mode     string   `yaml:"mode"`  // "single" (default) or "cluster"
-		Addrs    []string `yaml:"addrs"` // node addresses, e.g. ["h1:6379"] or ["h1:6379","h2:6379"]
-		DB       int      `yaml:"db"`    // single-mode database index
-		Username string   `yaml:"username"`
-		Password string   `yaml:"password"`
+		Mode            string   `yaml:"mode"`  // "single" (default) or "cluster"
+		Addrs           []string `yaml:"addrs"` // node addresses, e.g. ["h1:6379"] or ["h1:6379","h2:6379"]
+		DB              int      `yaml:"db"`    // single-mode database index
+		Username        string   `yaml:"username"`
+		Password        string   `yaml:"password"`
+		PoolSize        int      `yaml:"pool_size"`          // connection pool size
+		MinIdleConns    int      `yaml:"min_idle_conns"`     // minimum idle conns kept open
+		ConnMaxIdleTime int      `yaml:"conn_max_idle_time"` // max idle time for a conn (seconds)
 	} `yaml:"redis"`
 	RateLimit struct {
 		RPS   float64 `yaml:"rps"`
@@ -136,6 +142,9 @@ func LoadConfig(configPath string) *Config {
 		CacheTTL:        5 * time.Minute,
 		RedisAddrs:      []string{"127.0.0.1:6379"},
 		RedisMode:       "single",
+		RedisPoolSize:   10,
+		RedisMinIdle:    2,
+		RedisMaxIdleT:   5 * time.Minute,
 		RateLimitRPS:    10,
 		RateLimitBurst:  50,
 		DefaultPageSize: 20,
@@ -249,6 +258,15 @@ func applyFile(cfg *Config, cf *configFile) {
 	}
 	if cf.Redis.Password != "" {
 		cfg.RedisPass = cf.Redis.Password
+	}
+	if cf.Redis.PoolSize > 0 {
+		cfg.RedisPoolSize = cf.Redis.PoolSize
+	}
+	if cf.Redis.MinIdleConns > 0 {
+		cfg.RedisMinIdle = cf.Redis.MinIdleConns
+	}
+	if cf.Redis.ConnMaxIdleTime > 0 {
+		cfg.RedisMaxIdleT = time.Duration(cf.Redis.ConnMaxIdleTime) * time.Second
 	}
 	if cf.RateLimit.RPS > 0 {
 		cfg.RateLimitRPS = cf.RateLimit.RPS

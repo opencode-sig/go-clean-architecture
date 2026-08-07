@@ -25,16 +25,22 @@ func NewCache(cfg *infrastructure.Config) port.Cache {
 func newUniversalClient(cfg *infrastructure.Config) redis.UniversalClient {
 	if cfg.RedisMode == "cluster" {
 		return redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:    cfg.RedisAddrs,
-			Username: cfg.RedisUser,
-			Password: cfg.RedisPass,
+			Addrs:           cfg.RedisAddrs,
+			Username:        cfg.RedisUser,
+			Password:        cfg.RedisPass,
+			PoolSize:        cfg.RedisPoolSize,
+			MinIdleConns:    cfg.RedisMinIdle,
+			ConnMaxIdleTime: cfg.RedisMaxIdleT,
 		})
 	}
 
 	return redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddrs[0],
-		DB:       cfg.RedisDB,
-		Username: cfg.RedisUser,
-		Password: cfg.RedisPass,
+		Addr:            cfg.RedisAddrs[0],
+		DB:              cfg.RedisDB,
+		Username:        cfg.RedisUser,
+		Password:        cfg.RedisPass,
+		PoolSize:        cfg.RedisPoolSize,
+		MinIdleConns:    cfg.RedisMinIdle,
+		ConnMaxIdleTime: cfg.RedisMaxIdleT,
 	})
 }

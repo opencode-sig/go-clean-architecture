@@ -59,6 +59,9 @@ go run ./cmd/server/ -config config/production.yaml
 | `redis.db` | `0` | Redis 数据库编号（仅单节点模式） |
 | `redis.username` | — | ACL 用户名（Redis 6+；留空用默认用户，两模式均生效） |
 | `redis.password` | — | 密码（两模式均生效） |
+| `redis.pool_size` | `10` | 连接池大小 |
+| `redis.min_idle_conns` | `2` | 保持的最小空闲连接数 |
+| `redis.conn_max_idle_time` | `300` | 空闲连接最大存活时间（秒） |
 | `rate_limit.rps` | `10` | 每 IP 每秒请求数 |
 | `rate_limit.burst` | `50` | 每 IP 令牌桶容量 |
 | `pagination.default_page_size` | `20` | 列表默认页大小 |

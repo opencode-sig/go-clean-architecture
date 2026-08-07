@@ -28,6 +28,9 @@ redis:
     - "redis-3:6379"
   username: ""
   password: ""
+  pool_size: 10
+  min_idle_conns: 2
+  conn_max_idle_time: 300
 rate_limit:
   rps: 50
   burst: 100
