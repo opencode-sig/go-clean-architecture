@@ -144,10 +144,8 @@ web/                         # Frontend development (React + Vite + TailwindCSS)
 - **Graceful shutdown**: `main.go` runs `srv.ListenAndServe` in a goroutine, waits on `signal.NotifyContext`, then `srv.Shutdown` with a 10s timeout
 - **Server timeouts**: `ReadHeaderTimeout`/`ReadTimeout`/`WriteTimeout`/`IdleTimeout` come from `cfg`
 - **Health**: `GET /healthz` (liveness) and `GET /readyz` (DB ping) via `NewHealthHandler(db)`
-- **Rate limiting**: per-IP token bucket `NewIPRateLimiter(rps, burst, trustProxy)` as a middleware; 429-style business response code 1005. `trustProxy` honors `X-Forwarded-For`/`X-Real-IP` (`rate_limit.trust_proxy`, only behind a trusted proxy). Idle per-IP limiters are pruned on a fixed interval
-- **Idempotency**: `IdempotencyMiddleware(db, ttl, cleanupInterval)` makes POSTs with `Idempotency-Key` exactly-once. First request claims the key (`in_flight` INSERT), stores the completed response with an expiry (`idempotency.ttl`), then replays it; concurrent claims return code 1006 in-flight; expired keys are swept by a background janitor
-- **JWT auth** (optional skeleton): `auth.enabled` gates the whole `/api/v1` group behind `JWTAuth.AuthMiddleware()`; `main.go` constructs `NewJWTAuth(cfg)` (fails at startup on empty secret) and passes it to `NewRouter`. Protected handlers read the user id via `UserIDFromContext`. Token issuance is business login logic; a dev-only `POST /api/v1/auth/token` exists when `auth.dev_token_endpoint` is true
-- **Transactions**: `port.Tx` is a typed struct wrapping `*gorm.DB` (`port.NewTx`); `TxManager` is the only constructor. Repositories call `tx.DB()` — never type-assert
+- **Rate limiting**: per-IP token bucket `NewIPRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)` as a middleware; 429-style business response code 1005
+- **Idempotency**: `IdempotencyMiddleware(db)` makes POSTs with `Idempotency-Key` exactly-once. First request claims the key (`in_flight` INSERT), stores the completed response, then replays it; concurrent claims return code 1006 in-flight
 - **Lightweight tracing**: `requestID()` seeds `trace_id`/`span_id`/`parent_span_id` from `X-Trace-ID` (or generates); slog's `TraceHandler` attaches them to every log record. Metrics exemplars use `trace_id`
 - **Schema migration**: `infrastructure.Migrate(db, entities...)` runs `AutoMigrate` + normalizes pre-version `NULL` rows to 0 on startup
 

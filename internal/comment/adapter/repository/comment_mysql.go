@@ -24,7 +24,7 @@ func NewCommentMySQL(db *gorm.DB) *CommentMySQL {
 
 // WithTx returns a new repository instance scoped to the given transaction.
 func (r *CommentMySQL) WithTx(tx port.Tx) usecase.Repository {
-	return &CommentMySQL{db: tx.DB()}
+	return &CommentMySQL{db: tx.(*gorm.DB)}
 }
 
 // Create inserts a new comment row; GORM populates the ID and timestamps.

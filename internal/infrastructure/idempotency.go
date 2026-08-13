@@ -2,10 +2,7 @@ package infrastructure
 
 import (
 	"bytes"
-	"log/slog"
 	"net/http"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -23,13 +20,11 @@ const (
 )
 
 // idempotencyEntry stores an idempotency claim plus its completed response.
-// ExpiresAt bounds how long a key is retained; the janitor deletes expired rows.
 type idempotencyEntry struct {
-	Key       string           `gorm:"primaryKey;size:128"`
-	State     idempotencyState `gorm:"size:16;not null"`
-	Code      int              `gorm:"not null"`
-	Body      string           `gorm:"type:text;not null"`
-	ExpiresAt time.Time        `gorm:"index"`
+	Key   string           `gorm:"primaryKey;size:128"`
+	State idempotencyState `gorm:"size:16;not null"`
+	Code  int              `gorm:"not null"`
+	Body  string           `gorm:"type:text;not null"`
 }
 
 // TableName keeps GORM from pluralizing this entity into a conflicting name.
@@ -54,36 +49,12 @@ func (w *bodyCapturer) WriteString(s string) (int, error) {
 	return w.ResponseWriter.WriteString(s)
 }
 
-// startIdempotencyJanitor launches a single background sweep that deletes
-// expired idempotency keys on a fixed interval.
-func startIdempotencyJanitor(db *gorm.DB, interval time.Duration) {
-	idemJanitorOnce.Do(func() {
-		go func() {
-			t := time.NewTicker(interval)
-			defer t.Stop()
-			for range t.C {
-				// expires_at IS NULL covers rows created before the column existed.
-				if err := db.Exec("DELETE FROM idempotency_keys WHERE expires_at IS NULL OR expires_at < NOW()").Error; err != nil {
-					slog.Error("idempotency janitor sweep failed", "error", err)
-				}
-			}
-		}()
-	})
-}
-
-var idemJanitorOnce sync.Once
-
 // IdempotencyMiddleware makes POST requests carrying an Idempotency-Key
 // exactly-once. The first request claims the key (INSERT in_flight), runs the
-// handler, and stores the response with an expiry (cfg.IdempotencyTTL). Concurrent
-// or retried requests with the same key see the stored response; empty in-flight
-// claims are returned as 202 so clients can poll. Expired rows are swept by a
-// background janitor started once per process.
-func IdempotencyMiddleware(db *gorm.DB, ttl, cleanupInterval time.Duration) gin.HandlerFunc {
-	if cleanupInterval > 0 {
-		startIdempotencyJanitor(db, cleanupInterval)
-	}
-
+// handler, and stores the response. Concurrent or retried requests with the same
+// key see the stored response. Empty in-flight claims are returned as 202 so
+// clients can poll; a completed entry replays its stored response verbatim.
+func IdempotencyMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := c.GetHeader(IdempotencyKeyHeader)
 		if key == "" || c.Request.Method != http.MethodPost {
@@ -94,11 +65,7 @@ func IdempotencyMiddleware(db *gorm.DB, ttl, cleanupInterval time.Duration) gin.
 			key = key[:128]
 		}
 
-		claim := &idempotencyEntry{
-			Key:       key,
-			State:     stateInFlight,
-			ExpiresAt: time.Now().Add(ttl),
-		}
+		claim := &idempotencyEntry{Key: key, State: stateInFlight}
 		claimed := db.WithContext(c.Request.Context()).Create(claim).Error == nil
 
 		if !claimed {
@@ -129,10 +96,9 @@ func IdempotencyMiddleware(db *gorm.DB, ttl, cleanupInterval time.Duration) gin.
 				Model(&idempotencyEntry{}).
 				Where("`key` = ?", claim.Key).
 				UpdateColumns(map[string]any{
-					"state":      stateComplete,
-					"code":       captured.ResponseWriter.Status(),
-					"body":       captured.body.String(),
-					"expires_at": time.Now().Add(ttl),
+					"state": stateComplete,
+					"code":  captured.ResponseWriter.Status(),
+					"body":  captured.body.String(),
 				})
 		}
 	}

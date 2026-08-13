@@ -38,9 +38,7 @@ func (ginLogWriter) Write(p []byte) (int, error) {
 
 // NewRouter builds the Gin engine with recovery, request ID, structured logging,
 // metrics middleware, rate limiting, health endpoints, API routes, and static serving.
-// When auth is non-nil the /api/v1 group requires a valid Bearer token; the
-// dev token endpoint is registered only when cfg.AuthDevToken is set.
-func NewRouter(h Handlers, db *gorm.DB, cfg *Config, auth *JWTAuth) *gin.Engine {
+func NewRouter(h Handlers, db *gorm.DB, rateLimiter *IPRateLimiter) *gin.Engine {
 	gin.DefaultWriter = ginLogWriter{}
 
 	r := gin.New()
@@ -51,37 +49,28 @@ func NewRouter(h Handlers, db *gorm.DB, cfg *Config, auth *JWTAuth) *gin.Engine 
 	r.Use(requestID())
 	r.Use(slogLogger())
 	r.Use(MetricsMiddleware())
-	r.Use(NewIPRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, cfg.RateLimitTrustProxy).Middleware(nil))
-	r.Use(IdempotencyMiddleware(db, cfg.IdempotencyTTL, cfg.IdempotencyCleanup))
+	r.Use(rateLimiter.Middleware(nil))
+	r.Use(IdempotencyMiddleware(db))
 
 	r.GET("/healthz", NewHealthHandler(db))
 	r.GET("/readyz", NewHealthHandler(db))
 
-	api := r.Group("/api/v1")
-	if auth != nil {
-		api.Use(auth.AuthMiddleware())
-	}
+	r.POST("/api/v1/users/list", h.User.List)
+	r.POST("/api/v1/users/create", h.User.Create)
+	r.POST("/api/v1/users/get", h.User.GetByID)
+	r.POST("/api/v1/users/update", h.User.Update)
+	r.POST("/api/v1/users/delete", h.User.Delete)
 
-	api.POST("/users/list", h.User.List)
-	api.POST("/users/create", h.User.Create)
-	api.POST("/users/get", h.User.GetByID)
-	api.POST("/users/update", h.User.Update)
-	api.POST("/users/delete", h.User.Delete)
+	r.POST("/api/v1/articles/list", h.Article.List)
+	r.POST("/api/v1/articles/create", h.Article.Create)
+	r.POST("/api/v1/articles/get", h.Article.GetByID)
+	r.POST("/api/v1/articles/update", h.Article.Update)
+	r.POST("/api/v1/articles/delete", h.Article.Delete)
+	r.POST("/api/v1/articles/by-user", h.Article.ListByUser)
 
-	api.POST("/articles/list", h.Article.List)
-	api.POST("/articles/create", h.Article.Create)
-	api.POST("/articles/get", h.Article.GetByID)
-	api.POST("/articles/update", h.Article.Update)
-	api.POST("/articles/delete", h.Article.Delete)
-	api.POST("/articles/by-user", h.Article.ListByUser)
-
-	api.POST("/comments/list", h.Comment.ListByArticle)
-	api.POST("/comments/create", h.Comment.Create)
-	api.POST("/comments/delete", h.Comment.Delete)
-
-	if auth != nil && cfg.AuthDevToken {
-		r.POST("/api/v1/auth/token", NewAuthTokenHandler(auth))
-	}
+	r.POST("/api/v1/comments/list", h.Comment.ListByArticle)
+	r.POST("/api/v1/comments/create", h.Comment.Create)
+	r.POST("/api/v1/comments/delete", h.Comment.Delete)
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.GET("/metrics", metricsHandler())

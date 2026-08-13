@@ -254,15 +254,6 @@ definitions:
     - id
     - username
     type: object
-  infrastructure.TokenRequest:
-    properties:
-      user_id:
-        example: 1
-        minimum: 1
-        type: integer
-    required:
-    - user_id
-    type: object
   port.Page:
     properties:
       items: {}
@@ -446,34 +437,6 @@ paths:
       summary: Update an article
       tags:
       - articles
-  /auth/token:
-    post:
-      consumes:
-      - application/json
-      description: Mints a token for a user id without any credential check. Development
-        only — register via auth.dev_token_endpoint.
-      parameters:
-      - description: User ID
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/infrastructure.TokenRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/port.Response'
-            - properties:
-                data:
-                  type: object
-              type: object
-      summary: Issue a dev JWT token
-      tags:
-      - auth
   /comments/create:
     post:
       consumes:

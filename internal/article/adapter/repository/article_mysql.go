@@ -24,7 +24,7 @@ func NewArticleMySQL(db *gorm.DB) *ArticleMySQL {
 
 // WithTx returns a new repository bound to the given transaction.
 func (r *ArticleMySQL) WithTx(tx port.Tx) usecase.Repository {
-	return &ArticleMySQL{db: tx.DB()}
+	return &ArticleMySQL{db: tx.(*gorm.DB)}
 }
 
 // Create inserts an article; GORM populates the ID and timestamps.

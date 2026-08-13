@@ -279,52 +279,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/token": {
-            "post": {
-                "description": "Mints a token for a user id without any credential check. Development only — register via auth.dev_token_endpoint.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Issue a dev JWT token",
-                "parameters": [
-                    {
-                        "description": "User ID",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/infrastructure.TokenRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/port.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/comments/create": {
             "post": {
                 "description": "Adds a new comment on the specified article.",
@@ -1022,19 +976,6 @@ const docTemplate = `{
                     "type": "integer",
                     "minimum": 0,
                     "example": 0
-                }
-            }
-        },
-        "infrastructure.TokenRequest": {
-            "type": "object",
-            "required": [
-                "user_id"
-            ],
-            "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 1
                 }
             }
         },

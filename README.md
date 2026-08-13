@@ -64,14 +64,6 @@ go run ./cmd/server/ -config config/production.yaml
 | `redis.conn_max_idle_time` | `300` | 空闲连接最大存活时间（秒） |
 | `rate_limit.rps` | `10` | 每 IP 每秒请求数 |
 | `rate_limit.burst` | `50` | 每 IP 令牌桶容量 |
-| `rate_limit.trust_proxy` | `false` | 是否信任 `X-Forwarded-For`/`X-Real-IP`（仅在可信反代后开启，否则客户端可伪造 IP 绕过限流） |
-| `idempotency.ttl` | `86400` | 幂等键保留时长（秒），过期后由后台清扫 |
-| `idempotency.cleanup_interval` | `3600` | 幂等键过期清扫间隔（秒） |
-| `auth.enabled` | `false` | 开启后 `/api/v1` 全部接口要求 `Bearer` JWT |
-| `auth.secret` | — | JWT HMAC 签名密钥（开启鉴权时必填，勿提交仓库） |
-| `auth.issuer` | `zhisuo-server` | token 的 issuer 声明 |
-| `auth.expires` | `86400` | token 有效期（秒） |
-| `auth.dev_token_endpoint` | `false` | 开发用 `/api/v1/auth/token` 发号端点（不校验凭据，生产勿开） |
 | `pagination.default_page_size` | `20` | 列表默认页大小 |
 | `pagination.max_page_size` | `100` | 列表页大小上限 |
 | `log.level` | `info` | 日志级别 (debug/info/warn/error) |
@@ -209,23 +201,11 @@ swag init -g cmd/server/main.go --output docs
 创建类请求可携带 `Idempotency-Key` 请求头实现恰好一次语义：
 - 首次请求执行并缓存完整响应，重试/重放返回完全相同的结果
 - 同一 key 并发请求返回 `1006`（in-flight），客户端可稍后重试
-- 完成的 key 保存 `idempotency.ttl` 秒（默认 24h），后台按 `cleanup_interval` 清扫过期行
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/users/create \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: order-123' \
-  -d '{"username":"jane","email":"jane@x.com"}'
-```
-
-### 认证（JWT 骨架）
-
-`auth.enabled: true` 后 `/api/v1` 全部接口要求 `Authorization: Bearer <token>`；中间件校验签名/有效期并把 `user_id` 注入请求上下文（`infrastructure.UserIDFromContext`）。签发 token 属于业务登录逻辑，模板只提供 `JWTAuth.Sign` 与开发用的 `/api/v1/auth/token`（`auth.dev_token_endpoint: true`，不校验凭据，生产勿开）。
-
-```bash
-curl -X POST http://localhost:8080/api/v1/users/create \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <token>' \
   -d '{"username":"jane","email":"jane@x.com"}'
 ```
 
@@ -278,9 +258,8 @@ curl -X POST http://localhost:8080/api/v1/articles/update \
 
 - **优雅关闭**: 收到 SIGTERM/SIGINT 后停止接收新请求，10 秒内排空在途请求
 - **健康检查**: `/healthz` 存活探针、`/readyz` 就绪探针（探测数据库连通性）
-- **限流**: 每 IP 令牌桶（`golang.org/x/time/rate`），超限返回 `1005`；可信任反代头解析真实客户端 IP，空闲 limiter 定时回收
-- **幂等**: `Idempotency-Key` 头实现创建类请求恰好一次，过期键定时清扫
-- **JWT 鉴权**: 可选开关，`/api/v1` 全量 Bearer token 校验（骨架，签发需接入登录）
+- **限流**: 每 IP 令牌桶（`golang.org/x/time/rate`），超限返回 `1005`
+- **幂等**: `Idempotency-Key` 头实现创建类请求恰好一次
 - **乐观锁**: 所有更新走 `Version` 字段条件更新，防并发覆盖
 - **列表缓存**: 文章列表缓存（短 TTL + 写入按前缀失效），单实体读缓存 + 穿透保护
 - **轻量链路**: 每个请求携带 `trace_id`/`span_id`/`parent_span_id` 贯穿日志与 Prometheus exemplar

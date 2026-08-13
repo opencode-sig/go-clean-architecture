@@ -24,7 +24,7 @@ func NewUserMySQL(db *gorm.DB) *UserMySQL {
 
 // WithTx returns a UserMySQL bound to the given transaction for unit-of-work scoping.
 func (r *UserMySQL) WithTx(tx port.Tx) usecase.Repository {
-	return &UserMySQL{db: tx.DB()}
+	return &UserMySQL{db: tx.(*gorm.DB)}
 }
 
 // Create inserts a new user row; GORM populates the ID and timestamps.

@@ -13,50 +13,42 @@ import (
 
 // Config holds all application configuration values loaded from YAML and defaults.
 type Config struct {
-	ServerPort          string
-	ServerReadHdrT      time.Duration
-	ServerReadT         time.Duration
-	ServerWriteT        time.Duration
-	ServerIdleT         time.Duration
-	DBHost              string
-	DBPort              int
-	DBUser              string
-	DBPassword          string
-	DBName              string
-	DBCharset           string
-	DBParsetime         string
-	DBLoc               string
-	DBMaxOpenConns      int
-	DBMaxIdleConns      int
-	DBConnMaxLive       time.Duration
-	CacheEnabled        bool
-	CacheType           string
-	CacheTTL            time.Duration
-	RedisMode           string
-	RedisAddrs          []string
-	RedisDB             int
-	RedisUser           string
-	RedisPass           string
-	RedisPoolSize       int
-	RedisMinIdle        int
-	RedisMaxIdleT       time.Duration
-	RateLimitRPS        float64
-	RateLimitBurst      int
-	RateLimitTrustProxy bool
-	IdempotencyTTL      time.Duration
-	IdempotencyCleanup  time.Duration
-	AuthEnabled         bool
-	AuthSecret          string
-	AuthIssuer          string
-	AuthExpires         time.Duration
-	AuthDevToken        bool
-	DefaultPageSize     int
-	MaxPageSize         int
-	LogLevel            string
-	LogFile             string
-	LogMaxSize          int
-	LogMaxAge           int
-	LogMaxBK            int
+	ServerPort      string
+	ServerReadHdrT  time.Duration
+	ServerReadT     time.Duration
+	ServerWriteT    time.Duration
+	ServerIdleT     time.Duration
+	DBHost          string
+	DBPort          int
+	DBUser          string
+	DBPassword      string
+	DBName          string
+	DBCharset       string
+	DBParsetime     string
+	DBLoc           string
+	DBMaxOpenConns  int
+	DBMaxIdleConns  int
+	DBConnMaxLive   time.Duration
+	CacheEnabled    bool
+	CacheType       string
+	CacheTTL        time.Duration
+	RedisMode       string
+	RedisAddrs      []string
+	RedisDB         int
+	RedisUser       string
+	RedisPass       string
+	RedisPoolSize   int
+	RedisMinIdle    int
+	RedisMaxIdleT   time.Duration
+	RateLimitRPS    float64
+	RateLimitBurst  int
+	DefaultPageSize int
+	MaxPageSize     int
+	LogLevel        string
+	LogFile         string
+	LogMaxSize      int
+	LogMaxAge       int
+	LogMaxBK        int
 }
 
 // DSN builds a MySQL connection string from Config fields.
@@ -109,21 +101,9 @@ type configFile struct {
 		ConnMaxIdleTime int      `yaml:"conn_max_idle_time"` // max idle time for a conn (seconds)
 	} `yaml:"redis"`
 	RateLimit struct {
-		RPS        float64 `yaml:"rps"`
-		Burst      int     `yaml:"burst"`
-		TrustProxy bool    `yaml:"trust_proxy"` // honor X-Forwarded-For/X-Real-IP (only behind a trusted proxy)
+		RPS   float64 `yaml:"rps"`
+		Burst int     `yaml:"burst"`
 	} `yaml:"rate_limit"`
-	Idempotency struct {
-		TTL     int `yaml:"ttl"`              // seconds a completed key is kept
-		Cleanup int `yaml:"cleanup_interval"` // seconds between expiry sweeps
-	} `yaml:"idempotency"`
-	Auth struct {
-		Enabled  bool   `yaml:"enabled"`            // require JWT on /api/v1
-		Secret   string `yaml:"secret"`             // HMAC signing secret (required when enabled)
-		Issuer   string `yaml:"issuer"`             // token issuer claim
-		Expires  int    `yaml:"expires"`            // token TTL in seconds
-		DevToken bool   `yaml:"dev_token_endpoint"` // dev-only /auth/token issuer (no credential check)
-	} `yaml:"auth"`
 	Pagination struct {
 		DefaultPageSize int `yaml:"default_page_size"`
 		MaxPageSize     int `yaml:"max_page_size"`
@@ -141,44 +121,39 @@ type configFile struct {
 // If configPath is empty, it tries config.yaml first, then config/development.yaml.
 func LoadConfig(configPath string) *Config {
 	defaults := &Config{
-		ServerPort:         "8080",
-		ServerReadHdrT:     5 * time.Second,
-		ServerReadT:        30 * time.Second,
-		ServerWriteT:       30 * time.Second,
-		ServerIdleT:        120 * time.Second,
-		DBHost:             "127.0.0.1",
-		DBPort:             3306,
-		DBUser:             "root",
-		DBPassword:         "password",
-		DBName:             "zhisuo",
-		DBCharset:          "utf8mb4",
-		DBParsetime:        "True",
-		DBLoc:              "Local",
-		DBMaxOpenConns:     25,
-		DBMaxIdleConns:     5,
-		DBConnMaxLive:      5 * time.Minute,
-		CacheEnabled:       true,
-		CacheType:          "memory",
-		CacheTTL:           5 * time.Minute,
-		RedisAddrs:         []string{"127.0.0.1:6379"},
-		RedisMode:          "single",
-		RedisPoolSize:      10,
-		RedisMinIdle:       2,
-		RedisMaxIdleT:      5 * time.Minute,
-		RateLimitRPS:       10,
-		RateLimitBurst:     50,
-		IdempotencyTTL:     24 * time.Hour,
-		IdempotencyCleanup: time.Hour,
-		AuthEnabled:        false,
-		AuthIssuer:         "zhisuo-server",
-		AuthExpires:        24 * time.Hour,
-		DefaultPageSize:    20,
-		MaxPageSize:        100,
-		LogLevel:           "info",
-		LogFile:            "logs/app.log",
-		LogMaxSize:         100,
-		LogMaxAge:          30,
-		LogMaxBK:           7,
+		ServerPort:      "8080",
+		ServerReadHdrT:  5 * time.Second,
+		ServerReadT:     30 * time.Second,
+		ServerWriteT:    30 * time.Second,
+		ServerIdleT:     120 * time.Second,
+		DBHost:          "127.0.0.1",
+		DBPort:          3306,
+		DBUser:          "root",
+		DBPassword:      "password",
+		DBName:          "zhisuo",
+		DBCharset:       "utf8mb4",
+		DBParsetime:     "True",
+		DBLoc:           "Local",
+		DBMaxOpenConns:  25,
+		DBMaxIdleConns:  5,
+		DBConnMaxLive:   5 * time.Minute,
+		CacheEnabled:    true,
+		CacheType:       "memory",
+		CacheTTL:        5 * time.Minute,
+		RedisAddrs:      []string{"127.0.0.1:6379"},
+		RedisMode:       "single",
+		RedisPoolSize:   10,
+		RedisMinIdle:    2,
+		RedisMaxIdleT:   5 * time.Minute,
+		RateLimitRPS:    10,
+		RateLimitBurst:  50,
+		DefaultPageSize: 20,
+		MaxPageSize:     100,
+		LogLevel:        "info",
+		LogFile:         "logs/app.log",
+		LogMaxSize:      100,
+		LogMaxAge:       30,
+		LogMaxBK:        7,
 	}
 
 	paths := []string{configPath}
@@ -299,24 +274,6 @@ func applyFile(cfg *Config, cf *configFile) {
 	if cf.RateLimit.Burst > 0 {
 		cfg.RateLimitBurst = cf.RateLimit.Burst
 	}
-	cfg.RateLimitTrustProxy = cf.RateLimit.TrustProxy
-	if cf.Idempotency.TTL > 0 {
-		cfg.IdempotencyTTL = time.Duration(cf.Idempotency.TTL) * time.Second
-	}
-	if cf.Idempotency.Cleanup > 0 {
-		cfg.IdempotencyCleanup = time.Duration(cf.Idempotency.Cleanup) * time.Second
-	}
-	cfg.AuthEnabled = cf.Auth.Enabled
-	if cf.Auth.Secret != "" {
-		cfg.AuthSecret = cf.Auth.Secret
-	}
-	if cf.Auth.Issuer != "" {
-		cfg.AuthIssuer = cf.Auth.Issuer
-	}
-	if cf.Auth.Expires > 0 {
-		cfg.AuthExpires = time.Duration(cf.Auth.Expires) * time.Second
-	}
-	cfg.AuthDevToken = cf.Auth.DevToken
 	if cf.Pagination.DefaultPageSize > 0 {
 		cfg.DefaultPageSize = cf.Pagination.DefaultPageSize
 	}
