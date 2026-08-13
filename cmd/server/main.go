@@ -97,11 +97,21 @@ func main() {
 	articleAPI := articleHandler.NewArticleHandler(articleUseCase, pageCfg)
 	commentAPI := commentHandler.NewCommentHandler(commentUseCase, pageCfg)
 
+	var jwtAuth *infrastructure.JWTAuth
+	if cfg.AuthEnabled {
+		var err error
+		jwtAuth, err = infrastructure.NewJWTAuth(cfg)
+		if err != nil {
+			slog.Error("jwt auth setup failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	router := infrastructure.NewRouter(infrastructure.Handlers{
 		User:    userAPI,
 		Article: articleAPI,
 		Comment: commentAPI,
-	}, db, infrastructure.NewIPRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst))
+	}, db, cfg, jwtAuth)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.ServerPort,

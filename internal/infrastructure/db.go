@@ -11,9 +11,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// TxManager implements port.TxManager backed by GORM. A transaction is a
-// *gorm.DB session obtained from Begin; it is passed to repository WithTx
-// methods to bind operations to the same transaction.
+// TxManager implements port.TxManager backed by GORM. Begin starts a session
+// and wraps it in a typed port.Tx; the same handle is passed to repository
+// WithTx methods to bind operations to the transaction.
 type TxManager struct {
 	db *gorm.DB
 }
@@ -27,15 +27,15 @@ func NewTxManager(db *gorm.DB) *TxManager {
 func (m *TxManager) Begin(ctx context.Context) (port.Tx, error) {
 	tx := m.db.WithContext(ctx).Begin()
 	if err := tx.Error; err != nil {
-		return nil, fmt.Errorf("begin tx: %w", err)
+		return port.Tx{}, fmt.Errorf("begin tx: %w", err)
 	}
 
-	return tx, nil
+	return port.NewTx(tx), nil
 }
 
 // Commit commits the given transaction session.
 func (m *TxManager) Commit(tx port.Tx) error {
-	if err := tx.(*gorm.DB).Commit().Error; err != nil {
+	if err := tx.DB().Commit().Error; err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
 
@@ -44,7 +44,7 @@ func (m *TxManager) Commit(tx port.Tx) error {
 
 // Rollback rolls back the given transaction session.
 func (m *TxManager) Rollback(tx port.Tx) error {
-	if err := tx.(*gorm.DB).Rollback().Error; err != nil {
+	if err := tx.DB().Rollback().Error; err != nil {
 		return fmt.Errorf("rollback tx: %w", err)
 	}
 
